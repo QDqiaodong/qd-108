@@ -8,10 +8,12 @@
     </div>
 
     <div class="timer-display" v-if="stages.length">
-      <div class="current-stage" v-if="currentStageIndex >= 0">
-        <div class="stage-name">{{ currentStage?.name || '等待开始' }}</div>
+      <div class="current-stage" v-if="!isAllCompleted">
+        <div class="stage-name">
+          {{ hasStarted ? (currentStage?.name || '等待开始') : `${currentStage?.name || '第一阶段'} (待开始)` }}
+        </div>
         <div class="countdown" :class="{ warning: isTimeWarning, finished: isCurrentFinished }">
-          {{ formatTime(remainingTime) }}
+          {{ formatTime(displayRemainingTime) }}
         </div>
         <div class="stage-progress">
           <el-progress
@@ -33,7 +35,7 @@
           type="primary"
           size="large"
           @click="startTimer"
-          :disabled="currentStageIndex < 0"
+          :disabled="isAllCompleted"
           :icon="VideoPlay"
         >
           {{ hasStarted ? '继续' : '开始' }}
@@ -57,7 +59,7 @@
         <el-button
           size="large"
           @click="skipStage"
-          :disabled="currentStageIndex < 0 || currentStageIndex >= stages.length"
+          :disabled="isAllCompleted || !hasStarted || stages.length === 0"
           :icon="DArrowRight"
         >
           跳过
@@ -82,8 +84,9 @@
           :class="{
             active: index === currentStageIndex && isRunning,
             paused: index === currentStageIndex && !isRunning && hasStarted,
-            completed: index < currentStageIndex,
-            'current-stage-item': index === currentStageIndex
+            pending: index === displayStageIndex && !hasStarted,
+            completed: hasStarted && index < currentStageIndex,
+            'current-stage-item': index === displayStageIndex
           }"
         >
           <div class="stage-index">{{ index + 1 }}</div>
@@ -219,22 +222,40 @@ let audioContext = null
 
 const storageKey = computed(() => `recipe-timer-${props.recipeId || 'default'}`)
 
+const isAllCompleted = computed(() => {
+  return hasStarted.value && currentStageIndex.value >= stages.value.length
+})
+
+const displayStageIndex = computed(() => {
+  if (stages.value.length === 0) return -1
+  if (currentStageIndex.value >= stages.value.length) return -1
+  if (currentStageIndex.value < 0) return 0
+  return currentStageIndex.value
+})
+
 const currentStage = computed(() => {
-  if (currentStageIndex.value < 0 || currentStageIndex.value >= stages.value.length) {
-    return null
-  }
-  return stages.value[currentStageIndex.value]
+  const idx = displayStageIndex.value
+  if (idx < 0 || idx >= stages.value.length) return null
+  return stages.value[idx]
+})
+
+const displayRemainingTime = computed(() => {
+  if (stages.value.length === 0) return 0
+  if (!hasStarted.value) return stages.value[0]?.duration || 0
+  return remainingTime.value
 })
 
 const isCurrentFinished = computed(() => {
-  return currentStageIndex.value >= stages.value.length
+  return isAllCompleted.value
 })
 
 const isTimeWarning = computed(() => {
+  if (!hasStarted.value) return false
   return remainingTime.value > 0 && remainingTime.value <= 60
 })
 
 const stageProgress = computed(() => {
+  if (!hasStarted.value) return 0
   if (!currentStage.value || currentStage.value.duration === 0) return 0
   const elapsed = currentStage.value.duration - remainingTime.value
   return Math.min(100, Math.max(0, (elapsed / currentStage.value.duration) * 100))
@@ -380,21 +401,31 @@ const resetTimer = () => {
 }
 
 const skipStage = () => {
-  if (currentStageIndex.value < 0 || currentStageIndex.value >= stages.value.length) return
+  if (stages.value.length === 0 || isAllCompleted.value) return
 
   stopTimerInterval()
   endTime = null
 
-  currentStageIndex.value++
-  if (currentStageIndex.value < stages.value.length) {
-    remainingTime.value = stages.value[currentStageIndex.value].duration
-    if (isRunning.value) {
-      endTime = Date.now() + remainingTime.value * 1000
-      startTimerInterval()
+  if (!hasStarted.value) {
+    currentStageIndex.value = 1
+    if (currentStageIndex.value >= stages.value.length) {
+      currentStageIndex.value = stages.value.length
+      remainingTime.value = 0
+    } else {
+      remainingTime.value = stages.value[currentStageIndex.value].duration
     }
   } else {
-    isRunning.value = false
-    remainingTime.value = 0
+    currentStageIndex.value++
+    if (currentStageIndex.value < stages.value.length) {
+      remainingTime.value = stages.value[currentStageIndex.value].duration
+      if (isRunning.value) {
+        endTime = Date.now() + remainingTime.value * 1000
+        startTimerInterval()
+      }
+    } else {
+      isRunning.value = false
+      remainingTime.value = 0
+    }
   }
 
   saveToStorage()
@@ -758,6 +789,11 @@ onUnmounted(() => {
   border-color: #e6a23c;
 }
 
+.stage-item.pending {
+  background: #ecf5ff;
+  border-color: #409eff;
+}
+
 .stage-item.completed {
   background: #f4f4f5;
   opacity: 0.6;
@@ -788,6 +824,11 @@ onUnmounted(() => {
 
 .stage-item.paused .stage-index {
   background: #e6a23c;
+  color: #fff;
+}
+
+.stage-item.pending .stage-index {
+  background: #409eff;
   color: #fff;
 }
 
