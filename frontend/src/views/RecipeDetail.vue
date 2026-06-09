@@ -89,6 +89,8 @@
           </div>
         </div>
 
+        <RecipeTimer :recipe-id="recipe.id" />
+
         <div class="content-section" v-if="steps.length">
           <h2 class="section-title">制作步骤</h2>
           <div class="steps-list">
@@ -162,6 +164,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import RecipeTimer from '@/components/RecipeTimer.vue'
 import {
   getRecipeDetail,
   checkFavorite,
