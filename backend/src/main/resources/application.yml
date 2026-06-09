@@ -1,0 +1,107 @@
+server:
+  port: 9031
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: baking-backend
+  profiles:
+    active: dev
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3331/baking?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: baking
+    password: baking123
+
+  data:
+    redis:
+      host: localhost
+      port: 6431
+      password: baking123
+      database: 0
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1
+          max-idle: 8
+          min-idle: 0
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.baking.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+baking:
+  upload:
+    path: ./uploads
+    url-prefix: /uploads
+  cache:
+    hot-recipe-ttl: 3600
+    category-ttl: 7200
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://mysql:3306/baking?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: baking
+    password: baking123
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: baking123
+      database: 0
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1
+          max-idle: 8
+          min-idle: 0
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.baking.entity
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+baking:
+  upload:
+    path: /app/uploads
+    url-prefix: /uploads
+  cache:
+    hot-recipe-ttl: 3600
+    category-ttl: 7200
