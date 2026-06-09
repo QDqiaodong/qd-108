@@ -35,6 +35,27 @@ get_process_info() {
     fi
 }
 
+wait_for_url() {
+    local name=$1
+    local url=$2
+    local max_attempts=${3:-30}
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        if curl -fsS "$url" >/dev/null 2>&1; then
+            echo "✅ $name 已就绪"
+            return 0
+        fi
+
+        echo "⏳ 等待 $name 就绪 ($attempt/$max_attempts)"
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    echo "❌ $name 启动超时：$url"
+    return 1
+}
+
 echo "正在检测端口..."
 echo ""
 
@@ -93,7 +114,10 @@ fi
 
 echo ""
 echo "等待服务就绪..."
-sleep 5
+echo ""
+
+wait_for_url "后端 API" "http://127.0.0.1:$BACKEND_PORT/api/categories" 60 || exit 1
+wait_for_url "前端页面" "http://127.0.0.1:$FRONTEND_PORT" 30 || exit 1
 
 echo ""
 echo "=========================================="
