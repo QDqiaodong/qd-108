@@ -155,6 +155,7 @@
         </div>
       </div>
     </div>
+    <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" />
   </div>
 </template>
 
@@ -165,6 +166,7 @@ import { ElMessage } from 'element-plus'
 import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import RecipeTimer from '@/components/RecipeTimer.vue'
+import AchievementUnlock from '@/components/AchievementUnlock.vue'
 import {
   getRecipeDetail,
   checkFavorite,
@@ -185,6 +187,8 @@ const commentContent = ref('')
 const comments = ref([])
 const commentsLoading = ref(false)
 const showLogin = ref(false)
+const showAchievementUnlock = ref(false)
+const newlyUnlocked = ref([])
 
 const ingredients = computed(() => {
   if (!recipe.value?.ingredients) return []
@@ -240,10 +244,15 @@ const toggleFavorite = async () => {
       recipe.value.favoriteCount--
       ElMessage.success('已取消收藏')
     } else {
-      await addFavorite({ userId: userStore.userInfo.id, recipeId: route.params.id })
+      const result = await addFavorite({ userId: userStore.userInfo.id, recipeId: route.params.id })
       isFavorited.value = true
       recipe.value.favoriteCount++
       ElMessage.success('收藏成功')
+
+      if (result.newlyUnlocked && result.newlyUnlocked.length > 0) {
+        newlyUnlocked.value = result.newlyUnlocked
+        showAchievementUnlock.value = true
+      }
     }
   } catch (e) {
     console.error(e)

@@ -3,12 +3,16 @@ package com.baking.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baking.common.Result;
 import com.baking.entity.Recipe;
+import com.baking.entity.UserAchievement;
+import com.baking.service.AchievementService;
 import com.baking.service.RecipeService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/recipes")
@@ -16,6 +20,7 @@ import java.util.List;
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final AchievementService achievementService;
 
     @GetMapping
     public Result<IPage<Recipe>> getRecipePage(
@@ -37,7 +42,7 @@ public class RecipeController {
     }
 
     @PostMapping
-    public Result<Recipe> createRecipe(@RequestBody RecipeRequest request) {
+    public Result<Map<String, Object>> createRecipe(@RequestBody RecipeRequest request) {
         Recipe recipe = new Recipe();
         recipe.setTitle(request.getTitle());
         recipe.setCoverImage(request.getCoverImage());
@@ -50,7 +55,17 @@ public class RecipeController {
         recipe.setServings(request.getServings());
         recipe.setCategoryId(request.getCategoryId());
         recipe.setUserId(request.getUserId());
-        return Result.success(recipeService.createRecipe(recipe, request.getImages()));
+        Recipe createdRecipe = recipeService.createRecipe(recipe, request.getImages());
+
+        List<UserAchievement> newlyUnlocked = achievementService.checkPublishAchievements(request.getUserId());
+        List<UserAchievement> categoryUnlocked = achievementService.checkCategoryAchievements(
+                request.getUserId(), request.getCategoryId());
+        newlyUnlocked.addAll(categoryUnlocked);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("recipe", createdRecipe);
+        result.put("newlyUnlocked", newlyUnlocked);
+        return Result.success(result);
     }
 
     @GetMapping("/user/{userId}")

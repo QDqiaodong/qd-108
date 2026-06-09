@@ -153,6 +153,7 @@
         </el-form>
       </div>
     </div>
+    <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" @close="handleAchievementClose" />
   </div>
 </template>
 
@@ -163,6 +164,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete, Picture } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { getCategories, createRecipe, uploadImage } from '@/api'
+import AchievementUnlock from '@/components/AchievementUnlock.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -171,6 +173,8 @@ const submitting = ref(false)
 const categories = ref([])
 const uploadUrl = '/api/upload/image'
 const uploadHeaders = {}
+const showAchievementUnlock = ref(false)
+const newlyUnlocked = ref([])
 
 const form = reactive({
   title: '',
@@ -326,7 +330,7 @@ const submitForm = async () => {
     const validIngredients = ingredients.value.filter(i => i.name.trim())
     const validSteps = steps.value.filter(s => s.description.trim())
 
-    await createRecipe({
+    const result = await createRecipe({
       ...form,
       userId: userStore.userInfo.id,
       ingredients: JSON.stringify(validIngredients),
@@ -336,12 +340,22 @@ const submitForm = async () => {
 
     localStorage.removeItem(DRAFT_KEY)
     ElMessage.success('发布成功！')
-    router.push('/')
+
+    if (result.newlyUnlocked && result.newlyUnlocked.length > 0) {
+      newlyUnlocked.value = result.newlyUnlocked
+      showAchievementUnlock.value = true
+    } else {
+      router.push('/')
+    }
   } catch (e) {
     console.error(e)
   } finally {
     submitting.value = false
   }
+}
+
+const handleAchievementClose = () => {
+  router.push('/')
 }
 </script>
 

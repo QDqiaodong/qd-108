@@ -109,4 +109,66 @@ INSERT INTO `user` (`username`, `password`, `nickname`, `bio`) VALUES
 ('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '烘焙达人', '热爱烘焙，分享美食')
 ON DUPLICATE KEY UPDATE `username` = VALUES(`username`);
 
+CREATE TABLE IF NOT EXISTS `achievement` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL COMMENT '成就名称',
+  `description` varchar(200) DEFAULT NULL COMMENT '成就描述',
+  `icon` varchar(255) DEFAULT NULL COMMENT '成就图标',
+  `type` varchar(30) NOT NULL COMMENT '成就类型：publish-发布, favorite-收藏, checkin-打卡, category-分类',
+  `target` int DEFAULT 1 COMMENT '目标值',
+  `category_id` bigint DEFAULT NULL COMMENT '关联分类ID（分类成就用）',
+  `sort_order` int DEFAULT 0 COMMENT '排序',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='成就表';
+
+CREATE TABLE IF NOT EXISTS `user_achievement` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `achievement_id` bigint NOT NULL COMMENT '成就ID',
+  `progress` int DEFAULT 0 COMMENT '当前进度',
+  `unlocked` tinyint DEFAULT 0 COMMENT '是否解锁：0-未解锁 1-已解锁',
+  `unlocked_at` datetime DEFAULT NULL COMMENT '解锁时间',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_achievement` (`user_id`,`achievement_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_achievement_id` (`achievement_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户成就表';
+
+CREATE TABLE IF NOT EXISTS `check_in` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `check_date` date NOT NULL COMMENT '打卡日期',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_date` (`user_id`,`check_date`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='打卡表';
+
+INSERT INTO `achievement` (`name`, `description`, `icon`, `type`, `target`, `sort_order`) VALUES
+('首次发布', '发布第一个配方', '🎉', 'publish', 1, 1),
+('小有成就', '发布5个配方', '📝', 'publish', 5, 2),
+('烘焙达人', '发布20个配方', '👨‍🍳', 'publish', 20, 3),
+('收藏新手', '收藏10个配方', '⭐', 'favorite', 10, 4),
+('收藏达人', '收藏50个配方', '🏆', 'favorite', 50, 5),
+('收藏大师', '收藏100个配方', '💎', 'favorite', 100, 6),
+('初来乍到', '连续打卡1天', '📅', 'checkin', 1, 7),
+('坚持不懈', '连续打卡7天', '🔥', 'checkin', 7, 8),
+('打卡达人', '连续打卡30天', '👑', 'checkin', 30, 9)
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+INSERT INTO `achievement` (`name`, `description`, `icon`, `type`, `target`, `category_id`, `sort_order`) VALUES
+('面包学徒', '发布3个面包类配方', '🍞', 'category', 3, 1, 10),
+('面包大师', '发布10个面包类配方', '🥖', 'category', 10, 1, 11),
+('蛋糕学徒', '发布3个蛋糕类配方', '🧁', 'category', 3, 2, 12),
+('蛋糕大师', '发布10个蛋糕类配方', '🎂', 'category', 10, 2, 13),
+('饼干达人', '发布5个饼干类配方', '🍪', 'category', 5, 3, 14),
+('甜点大师', '发布8个甜点类配方', '🍰', 'category', 8, 4, 15),
+('披萨高手', '发布5个披萨类配方', '🍕', 'category', 5, 5, 16),
+('中式面点师', '发布8个中式面点配方', '🥟', 'category', 8, 6, 17)
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
 SET FOREIGN_KEY_CHECKS = 1;

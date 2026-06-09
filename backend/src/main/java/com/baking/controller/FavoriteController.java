@@ -2,12 +2,16 @@ package com.baking.controller;
 
 import com.baking.common.Result;
 import com.baking.entity.FavoriteFolder;
+import com.baking.entity.UserAchievement;
+import com.baking.service.AchievementService;
 import com.baking.service.FavoriteService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/favorites")
@@ -15,6 +19,7 @@ import java.util.List;
 public class FavoriteController {
 
     private final FavoriteService favoriteService;
+    private final AchievementService achievementService;
 
     @GetMapping("/check")
     public Result<Boolean> isFavorited(@RequestParam Long userId, @RequestParam Long recipeId) {
@@ -22,9 +27,14 @@ public class FavoriteController {
     }
 
     @PostMapping
-    public Result<Void> addFavorite(@RequestBody FavoriteRequest request) {
+    public Result<Map<String, Object>> addFavorite(@RequestBody FavoriteRequest request) {
         favoriteService.addFavorite(request.getUserId(), request.getRecipeId(), request.getFolderId());
-        return Result.success();
+        List<UserAchievement> newlyUnlocked = achievementService.checkFavoriteAchievements(request.getUserId());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("newlyUnlocked", newlyUnlocked);
+        return Result.success(result);
     }
 
     @DeleteMapping

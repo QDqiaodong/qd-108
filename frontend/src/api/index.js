@@ -159,3 +159,31 @@ export const uploadImage = (file) => {
     }
   })
 }
+
+export const getAchievements = () => {
+  return request({
+    url: '/achievements',
+    method: 'get'
+  })
+}
+
+export const getUserAchievements = (userId) => {
+  return request({
+    url: `/achievements/user/${userId}`,
+    method: 'get'
+  })
+}
+
+export const checkIn = (userId) => {
+  return request({
+    url: `/achievements/check-in/${userId}`,
+    method: 'post'
+  })
+}
+
+export const getCheckInStatus = (userId) => {
+  return request({
+    url: `/achievements/check-in/${userId}/status`,
+    method: 'get'
+  })
+}

@@ -22,7 +22,27 @@
                 加入于 {{ userStore.userInfo?.createdAt?.split(' ')[0] }}
               </p>
             </div>
+            <div class="checkin-section">
+              <div class="streak-info">
+                <span class="streak-icon">🔥</span>
+                <span class="streak-days">{{ streakDays }}天</span>
+                <span class="streak-label">连续打卡</span>
+              </div>
+              <el-button
+                type="primary"
+                size="large"
+                :disabled="hasCheckedInToday"
+                :class="{ 'btn-checked': hasCheckedInToday }"
+                @click="handleCheckIn"
+              >
+                {{ hasCheckedInToday ? '今日已打卡' : '立即打卡' }}
+              </el-button>
+            </div>
           </div>
+        </div>
+
+        <div class="badge-section">
+          <BadgeWall :achievements="userAchievements" />
         </div>
 
         <div class="profile-tabs">
@@ -65,15 +85,19 @@
     </div>
 
     <LoginDialog v-model:visible="showLogin" @login-success="handleLoginSuccess" />
+    <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" />
   </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { getUserRecipes, getFavoriteRecipes } from '@/api'
+import { getUserRecipes, getFavoriteRecipes, getUserAchievements, checkIn, getCheckInStatus } from '@/api'
 import RecipeCard from '@/components/RecipeCard.vue'
 import LoginDialog from '@/components/LoginDialog.vue'
+import BadgeWall from '@/components/BadgeWall.vue'
+import AchievementUnlock from '@/components/AchievementUnlock.vue'
+import { ElMessage } from 'element-plus'
 
 const userStore = useUserStore()
 const showLogin = ref(false)
@@ -83,10 +107,17 @@ const loading = ref(false)
 const pageNum = ref(1)
 const pageSize = ref(12)
 const total = ref(0)
+const userAchievements = ref([])
+const streakDays = ref(0)
+const hasCheckedInToday = ref(false)
+const showAchievementUnlock = ref(false)
+const newlyUnlocked = ref([])
 
 onMounted(() => {
   if (userStore.isLogin) {
     loadData()
+    loadAchievements()
+    loadCheckInStatus()
   }
 })
 
@@ -120,9 +151,49 @@ const loadData = async () => {
   }
 }
 
+const loadAchievements = async () => {
+  try {
+    const res = await getUserAchievements(userStore.userInfo.id)
+    userAchievements.value = res || []
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const loadCheckInStatus = async () => {
+  try {
+    const res = await getCheckInStatus(userStore.userInfo.id)
+    hasCheckedInToday.value = res.hasCheckedInToday || false
+    streakDays.value = res.streakDays || 0
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleCheckIn = async () => {
+  if (hasCheckedInToday.value) return
+  try {
+    const res = await checkIn(userStore.userInfo.id)
+    hasCheckedInToday.value = true
+    streakDays.value = res.streakDays || streakDays.value
+    ElMessage.success('打卡成功！')
+
+    if (res.newlyUnlocked && res.newlyUnlocked.length > 0) {
+      newlyUnlocked.value = res.newlyUnlocked
+      showAchievementUnlock.value = true
+      loadAchievements()
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('打卡失败，请重试')
+  }
+}
+
 const handleLoginSuccess = () => {
   showLogin.value = false
   loadData()
+  loadAchievements()
+  loadCheckInStatus()
 }
 </script>
 
@@ -168,6 +239,56 @@ const handleLoginSuccess = () => {
 .user-join-time {
   font-size: 13px;
   color: #999;
+}
+
+.checkin-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-left: 30px;
+  border-left: 1px solid #f0f0f0;
+}
+
+.streak-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.streak-icon {
+  font-size: 24px;
+}
+
+.streak-days {
+  font-size: 24px;
+  font-weight: 700;
+  color: #ff6b6b;
+}
+
+.streak-label {
+  font-size: 13px;
+  color: #999;
+}
+
+.checkin-section .el-button {
+  background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
+  border: none;
+  border-radius: 25px;
+  min-width: 120px;
+}
+
+.checkin-section .el-button:hover {
+  background: linear-gradient(135deg, #ff8a3d 0%, #ff5252 100%);
+}
+
+.checkin-section .el-button.btn-checked {
+  background: #f0f0f0;
+  color: #999;
+}
+
+.badge-section {
+  margin-bottom: 20px;
 }
 
 .profile-tabs {
