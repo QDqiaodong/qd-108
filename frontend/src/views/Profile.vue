@@ -45,6 +45,14 @@
           <BadgeWall :achievements="userAchievements" />
         </div>
 
+        <div class="calendar-section">
+          <CalendarView
+            v-if="userStore.userInfo?.id"
+            ref="calendarRef"
+            :userId="userStore.userInfo.id"
+          />
+        </div>
+
         <div class="profile-tabs">
           <div
             class="tab-item"
@@ -97,6 +105,7 @@ import RecipeCard from '@/components/RecipeCard.vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import BadgeWall from '@/components/BadgeWall.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
+import CalendarView from '@/components/CalendarView.vue'
 import { ElMessage } from 'element-plus'
 
 const userStore = useUserStore()
@@ -112,6 +121,7 @@ const streakDays = ref(0)
 const hasCheckedInToday = ref(false)
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
+const calendarRef = ref(null)
 
 onMounted(() => {
   if (userStore.isLogin) {
@@ -177,6 +187,10 @@ const handleCheckIn = async () => {
     hasCheckedInToday.value = true
     streakDays.value = res.streakDays || streakDays.value
     ElMessage.success('打卡成功！')
+
+    if (calendarRef.value) {
+      calendarRef.value.refreshCalendar()
+    }
 
     if (res.newlyUnlocked && res.newlyUnlocked.length > 0) {
       newlyUnlocked.value = res.newlyUnlocked
@@ -288,6 +302,10 @@ const handleLoginSuccess = () => {
 }
 
 .badge-section {
+  margin-bottom: 20px;
+}
+
+.calendar-section {
   margin-bottom: 20px;
 }
 

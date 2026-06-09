@@ -187,3 +187,43 @@ export const getCheckInStatus = (userId) => {
     method: 'get'
   })
 }
+
+export const getCalendarMonthData = (userId, year, month) => {
+  return request({
+    url: `/calendar/month/${userId}`,
+    method: 'get',
+    params: { year, month }
+  })
+}
+
+export const getCalendarDayDetail = (userId, date) => {
+  return request({
+    url: `/calendar/day/${userId}`,
+    method: 'get',
+    params: { date }
+  })
+}
+
+export const createBakePlan = (data) => {
+  return request({
+    url: '/calendar/plan',
+    method: 'post',
+    data
+  })
+}
+
+export const updateBakePlan = (data) => {
+  return request({
+    url: '/calendar/plan',
+    method: 'put',
+    data
+  })
+}
+
+export const deleteBakePlan = (id, userId) => {
+  return request({
+    url: `/calendar/plan/${id}`,
+    method: 'delete',
+    params: { userId }
+  })
+}

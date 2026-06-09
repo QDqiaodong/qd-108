@@ -196,4 +196,14 @@ public class AchievementService {
         wrapper.eq(CheckIn::getCheckDate, today);
         return checkInMapper.selectCount(wrapper) > 0;
     }
+
+    public List<CheckIn> getMonthCheckIns(Long userId, int year, int month) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+
+        LambdaQueryWrapper<CheckIn> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CheckIn::getUserId, userId);
+        wrapper.between(CheckIn::getCheckDate, startDate, endDate);
+        return checkInMapper.selectList(wrapper);
+    }
 }

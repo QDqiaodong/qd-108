@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS `check_in` (
   KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='打卡表';
 
+CREATE TABLE IF NOT EXISTS `bake_plan` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `plan_date` date NOT NULL COMMENT '计划烘焙日期',
+  `recipe_name` varchar(200) DEFAULT NULL COMMENT '计划烘焙的配方名称',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `reminder_enabled` tinyint DEFAULT 0 COMMENT '是否开启提醒：0-关闭 1-开启',
+  `reminder_time` datetime DEFAULT NULL COMMENT '提醒时间',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_date` (`user_id`,`plan_date`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='烘焙计划表';
+
 INSERT INTO `achievement` (`name`, `description`, `icon`, `type`, `target`, `sort_order`) VALUES
 ('首次发布', '发布第一个配方', '🎉', 'publish', 1, 1),
 ('小有成就', '发布5个配方', '📝', 'publish', 5, 2),

@@ -62,9 +62,15 @@ public class RecipeController {
                 request.getUserId(), request.getCategoryId());
         newlyUnlocked.addAll(categoryUnlocked);
 
+        List<UserAchievement> checkInUnlocked = achievementService.checkIn(request.getUserId());
+        newlyUnlocked.addAll(checkInUnlocked);
+
+        int streakDays = achievementService.getStreakDays(request.getUserId());
+
         Map<String, Object> result = new HashMap<>();
         result.put("recipe", createdRecipe);
         result.put("newlyUnlocked", newlyUnlocked);
+        result.put("streakDays", streakDays);
         return Result.success(result);
     }
 
