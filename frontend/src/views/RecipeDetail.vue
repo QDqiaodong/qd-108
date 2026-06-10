@@ -1,5 +1,5 @@
 <template>
-  <div class="recipe-detail" v-loading="loading">
+  <div class="recipe-detail" :class="{ 'cooking-mode': cookingMode }" v-loading="loading">
     <div class="container" v-if="recipe">
       <div class="detail-header">
         <div class="recipe-gallery">
@@ -34,6 +34,13 @@
             </div>
             <div class="actions">
               <el-button
+                :type="cookingMode ? 'warning' : 'default'"
+                @click="toggleCookingMode"
+              >
+                <el-icon style="margin-right: 4px;"><Sunny /></el-icon>
+                {{ cookingMode ? '退出烹饪模式' : '烹饪模式' }}
+              </el-button>
+              <el-button
                 :type="isFavorited ? 'danger' : 'default'"
                 @click="toggleFavorite"
                 :icon="isFavorited ? StarFilled : Star"
@@ -65,10 +72,10 @@
             <el-tag v-if="recipe.difficulty" type="info" effect="light">
               {{ getDifficultyText(recipe.difficulty) }}
             </el-tag>
-            <el-tag v-if="recipe.bakeTime" type="success" effect="light">
+            <el-tag v-if="recipe.bakeTime" type="success" effect="light" :class="{ 'cooking-highlight-tag': cookingMode }">
               {{ recipe.bakeTime }}分钟
             </el-tag>
-            <el-tag v-if="recipe.bakeTemp" type="danger" effect="light">
+            <el-tag v-if="recipe.bakeTemp" type="danger" effect="light" :class="{ 'cooking-highlight-tag': cookingMode }">
               {{ recipe.bakeTemp }}℃
             </el-tag>
             <el-tag v-if="recipe.servings" type="primary" effect="light">
@@ -89,7 +96,7 @@
           </div>
         </div>
 
-        <RecipeTimer :recipe-id="recipe.id" />
+        <RecipeTimer :recipe-id="recipe.id" :cooking-mode="cookingMode" />
 
         <div class="content-section" v-if="steps.length">
           <div class="section-header">
@@ -107,7 +114,11 @@
               :key="idx"
               :ref="el => setStepRef(el, idx)"
               class="step-item"
-              :class="{ 'step-completed': isStepCompleted(idx), 'step-current': isCurrentStep(idx) }"
+              :class="{
+                'step-completed': isStepCompleted(idx),
+                'step-current': isCurrentStep(idx),
+                'cooking-step-current': cookingMode && isCurrentStep(idx)
+              }"
               @click="toggleStep(idx)"
             >
               <div class="step-checkbox">
@@ -173,15 +184,43 @@
         </div>
       </div>
     </div>
+
+    <Transition name="cooking-bar">
+      <div class="cooking-info-bar" v-if="cookingMode && recipe">
+        <div class="cooking-bar-inner">
+          <div class="cooking-bar-item cooking-bar-step" v-if="currentStepText">
+            <span class="cooking-bar-label">当前步骤</span>
+            <span class="cooking-bar-value">{{ currentStepText }}</span>
+          </div>
+          <div class="cooking-bar-item cooking-bar-temp" v-if="recipe.bakeTemp">
+            <span class="cooking-bar-label">烘烤温度</span>
+            <span class="cooking-bar-value">{{ recipe.bakeTemp }}℃</span>
+          </div>
+          <div class="cooking-bar-item cooking-bar-timer" v-if="timerRemaining >= 0">
+            <span class="cooking-bar-label">剩余计时</span>
+            <span class="cooking-bar-value" :class="{ 'timer-warning': timerRemaining <= 60 && timerRemaining > 0 }">{{ formatTimerDisplay(timerRemaining) }}</span>
+          </div>
+          <el-button
+            type="warning"
+            size="small"
+            class="cooking-bar-close"
+            @click="toggleCookingMode"
+          >
+            退出烹饪
+          </el-button>
+        </div>
+      </div>
+    </Transition>
+
     <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled } from '@element-plus/icons-vue'
+import { Star, StarFilled, Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import RecipeTimer from '@/components/RecipeTimer.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
@@ -214,6 +253,11 @@ const newlyUnlocked = ref([])
 const completedSteps = ref(new Set())
 const stepRefs = ref([])
 const isProgressLoaded = ref(false)
+
+const cookingMode = ref(false)
+let wakeLock = null
+const timerRemaining = ref(-1)
+let timerSyncInterval = null
 
 const ingredients = computed(() => {
   if (!recipe.value?.ingredients) return []
@@ -355,9 +399,112 @@ const getDifficultyText = (level) => {
   return map[level] || '简单'
 }
 
+const currentStepText = computed(() => {
+  if (!steps.value.length) return ''
+  const idx = firstUncompletedIndex.value
+  if (idx < 0) return '全部完成'
+  const desc = steps.value[idx]?.description || ''
+  return `第${idx + 1}步: ${desc.length > 20 ? desc.slice(0, 20) + '...' : desc}`
+})
+
+const formatTimerDisplay = (seconds) => {
+  if (seconds < 0) return '--:--:--'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+const requestWakeLock = async () => {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen')
+      wakeLock.addEventListener('release', () => {
+        if (cookingMode.value) {
+          cookingMode.value = false
+        }
+      })
+    }
+  } catch (e) {
+    console.error('Wake Lock request failed:', e)
+  }
+}
+
+const releaseWakeLock = async () => {
+  try {
+    if (wakeLock) {
+      await wakeLock.release()
+      wakeLock = null
+    }
+  } catch (e) {
+    console.error('Wake Lock release failed:', e)
+  }
+}
+
+const syncTimerFromStorage = () => {
+  try {
+    const key = `recipe-timer-${route.params.id || 'default'}`
+    const data = localStorage.getItem(key)
+    if (!data) {
+      timerRemaining.value = -1
+      return
+    }
+    const parsed = JSON.parse(data)
+    if (!parsed.hasStarted || !parsed.stages?.length) {
+      timerRemaining.value = -1
+      return
+    }
+    if (parsed.isRunning && parsed.endTime) {
+      const timeLeft = Math.floor((parsed.endTime - Date.now()) / 1000)
+      timerRemaining.value = Math.max(0, timeLeft)
+    } else {
+      timerRemaining.value = parsed.remainingTime || 0
+    }
+  } catch {
+    timerRemaining.value = -1
+  }
+}
+
+const toggleCookingMode = async () => {
+  if (cookingMode.value) {
+    cookingMode.value = false
+    await releaseWakeLock()
+    if (timerSyncInterval) {
+      clearInterval(timerSyncInterval)
+      timerSyncInterval = null
+    }
+    timerRemaining.value = -1
+    ElMessage.success('已退出烹饪模式')
+  } else {
+    cookingMode.value = true
+    await requestWakeLock()
+    syncTimerFromStorage()
+    timerSyncInterval = setInterval(syncTimerFromStorage, 1000)
+    ElMessage.success('已开启烹饪模式，屏幕将保持常亮')
+  }
+}
+
+const handleVisibilityChange = async () => {
+  if (document.visibilityState === 'visible' && cookingMode.value && !wakeLock) {
+    await requestWakeLock()
+  }
+}
+
 onMounted(() => {
   loadRecipe()
   loadComments()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onUnmounted(() => {
+  if (cookingMode.value) {
+    releaseWakeLock()
+  }
+  if (timerSyncInterval) {
+    clearInterval(timerSyncInterval)
+    timerSyncInterval = null
+  }
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 const loadRecipe = async () => {
@@ -802,5 +949,155 @@ const likeComment = async (id) => {
   font-weight: 500;
   color: #333;
   margin-right: 8px;
+}
+
+.cooking-mode .detail-content {
+  transition: background 0.3s;
+}
+
+.cooking-highlight-tag {
+  transform: scale(1.2);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
+  transition: all 0.3s ease;
+}
+
+.cooking-step-current {
+  border-color: #ff6b6b !important;
+  background: #fff0f0 !important;
+  box-shadow: 0 4px 20px rgba(255, 107, 107, 0.35) !important;
+  transform: scale(1.02);
+  position: relative;
+}
+
+.cooking-step-current::before {
+  content: '当前步骤';
+  position: absolute;
+  top: -10px;
+  left: 16px;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.cooking-step-current .step-number {
+  animation: cooking-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes cooking-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 8px rgba(255, 107, 107, 0);
+  }
+}
+
+.cooking-info-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff9a56 100%);
+  color: #fff;
+  box-shadow: 0 -4px 20px rgba(255, 107, 107, 0.4);
+}
+
+.cooking-bar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.cooking-bar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cooking-bar-label {
+  font-size: 12px;
+  opacity: 0.85;
+  letter-spacing: 1px;
+}
+
+.cooking-bar-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.cooking-bar-step .cooking-bar-value {
+  font-family: inherit;
+  font-size: 16px;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cooking-bar-timer .timer-warning {
+  animation: bar-timer-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes bar-timer-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.cooking-bar-close {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #fff !important;
+}
+
+.cooking-bar-close:hover {
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+
+.cooking-bar-enter-active,
+.cooking-bar-leave-active {
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+.cooking-bar-enter-from,
+.cooking-bar-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.cooking-mode .container {
+  padding-bottom: 80px;
+}
+
+@media (max-width: 768px) {
+  .cooking-bar-inner {
+    gap: 16px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+  }
+
+  .cooking-bar-value {
+    font-size: 15px;
+  }
+
+  .cooking-bar-step .cooking-bar-value {
+    max-width: 160px;
+  }
+
+  .cooking-bar-close {
+    margin-left: 0;
+  }
 }
 </style>

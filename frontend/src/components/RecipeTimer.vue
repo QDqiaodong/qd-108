@@ -1,5 +1,5 @@
 <template>
-  <div class="recipe-timer">
+  <div class="recipe-timer" :class="{ 'cooking-mode-timer': cookingMode }">
     <div class="timer-header">
       <h3 class="section-title">烘焙计时器</h3>
       <el-button type="primary" size="small" @click="showAddDialog = true" :icon="Plus">
@@ -7,18 +7,18 @@
       </el-button>
     </div>
 
-    <div class="timer-display" v-if="stages.length">
+    <div class="timer-display" :class="{ 'cooking-timer-display': cookingMode }" v-if="stages.length">
       <div class="current-stage" v-if="!isAllCompleted">
         <div class="stage-name">
           {{ hasStarted ? (currentStage?.name || '等待开始') : `${currentStage?.name || '第一阶段'} (待开始)` }}
         </div>
-        <div class="countdown" :class="{ warning: isTimeWarning, finished: isCurrentFinished }">
+        <div class="countdown" :class="{ warning: isTimeWarning, finished: isCurrentFinished, 'cooking-countdown': cookingMode }">
           {{ formatTime(displayRemainingTime) }}
         </div>
         <div class="stage-progress">
           <el-progress
             :percentage="stageProgress"
-            :stroke-width="6"
+            :stroke-width="cookingMode ? 10 : 6"
             :color="progressColor"
             show-text="false"
           />
@@ -26,7 +26,7 @@
       </div>
       <div class="current-stage" v-else>
         <div class="stage-name">全部完成</div>
-        <div class="countdown finished">00:00:00</div>
+        <div class="countdown finished" :class="{ 'cooking-countdown': cookingMode }">00:00:00</div>
       </div>
 
       <div class="timer-controls">
@@ -86,7 +86,8 @@
             paused: index === currentStageIndex && !isRunning && hasStarted,
             pending: index === displayStageIndex && !hasStarted,
             completed: hasStarted && index < currentStageIndex,
-            'current-stage-item': index === displayStageIndex
+            'current-stage-item': index === displayStageIndex,
+            'cooking-active-stage': cookingMode && index === currentStageIndex && isRunning
           }"
         >
           <div class="stage-index">{{ index + 1 }}</div>
@@ -194,6 +195,10 @@ const props = defineProps({
   recipeId: {
     type: [String, Number],
     default: ''
+  },
+  cookingMode: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -941,6 +946,34 @@ onUnmounted(() => {
 
   .timer-controls .el-button {
     padding: 10px 16px;
+  }
+}
+
+.cooking-mode-timer {
+  border: 3px solid #ff6b6b;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+}
+
+.cooking-timer-display {
+  background: linear-gradient(135deg, #fff0f0 0%, #ffe8e8 100%);
+  padding: 40px 32px;
+}
+
+.cooking-countdown {
+  font-size: 72px;
+  text-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
+}
+
+.cooking-active-stage {
+  border-color: #ff6b6b !important;
+  background: #fff5f5 !important;
+  box-shadow: 0 0 16px rgba(255, 107, 107, 0.4) !important;
+  transform: scale(1.02);
+}
+
+@media (max-width: 768px) {
+  .cooking-countdown {
+    font-size: 48px;
   }
 }
 </style>
