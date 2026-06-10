@@ -196,6 +196,20 @@ CREATE TABLE IF NOT EXISTS `ingredient_alias` (
   KEY `idx_canonical_name` (`canonical_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='食材别名表';
 
+CREATE TABLE IF NOT EXISTS `recipe_step_progress` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `recipe_id` bigint NOT NULL COMMENT '配方ID',
+  `completed_steps` text COMMENT '已完成的步骤索引（JSON数组）',
+  `last_step_index` int DEFAULT 0 COMMENT '最后完成的步骤索引',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_recipe` (`user_id`,`recipe_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_recipe_id` (`recipe_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='配方步骤进度表';
+
 INSERT INTO `ingredient_alias` (`canonical_name`, `alias_name`) VALUES
 ('高筋面粉', '高筋粉'),
 ('高筋面粉', '高筋面粉'),

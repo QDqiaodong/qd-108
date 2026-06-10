@@ -92,9 +92,27 @@
         <RecipeTimer :recipe-id="recipe.id" />
 
         <div class="content-section" v-if="steps.length">
-          <h2 class="section-title">制作步骤</h2>
+          <div class="section-header">
+            <h2 class="section-title">制作步骤</h2>
+            <div class="progress-actions">
+              <span class="progress-text">已完成 {{ completedStepCount }}/{{ steps.length }} 步</span>
+              <el-button size="small" text type="danger" @click="handleResetProgress">
+                重置进度
+              </el-button>
+            </div>
+          </div>
           <div class="steps-list">
-            <div v-for="(step, idx) in steps" :key="idx" class="step-item">
+            <div
+              v-for="(step, idx) in steps"
+              :key="idx"
+              :ref="el => setStepRef(el, idx)"
+              class="step-item"
+              :class="{ 'step-completed': isStepCompleted(idx), 'step-current': isCurrentStep(idx) }"
+              @click="toggleStep(idx)"
+            >
+              <div class="step-checkbox">
+                <el-checkbox :model-value="isStepCompleted(idx)" @click.stop="toggleStep(idx)" />
+              </div>
               <div class="step-number">{{ idx + 1 }}</div>
               <div class="step-content">
                 <p>{{ step.description }}</p>
@@ -160,9 +178,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import RecipeTimer from '@/components/RecipeTimer.vue'
@@ -174,7 +192,10 @@ import {
   removeFavorite,
   getComments,
   addComment,
-  likeComment as likeCommentApi
+  likeComment as likeCommentApi,
+  getRecipeProgress,
+  saveRecipeProgress,
+  resetRecipeProgress
 } from '@/api'
 
 const route = useRoute()
@@ -189,6 +210,10 @@ const commentsLoading = ref(false)
 const showLogin = ref(false)
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
+
+const completedSteps = ref(new Set())
+const stepRefs = ref([])
+const isProgressLoaded = ref(false)
 
 const ingredients = computed(() => {
   if (!recipe.value?.ingredients) return []
@@ -208,6 +233,123 @@ const steps = computed(() => {
   }
 })
 
+const completedStepCount = computed(() => completedSteps.value.size)
+
+const firstUncompletedIndex = computed(() => {
+  const total = steps.value.length
+  for (let i = 0; i < total; i++) {
+    if (!completedSteps.value.has(i)) {
+      return i
+    }
+  }
+  return -1
+})
+
+const setStepRef = (el, idx) => {
+  if (el) {
+    stepRefs.value[idx] = el
+  }
+}
+
+const isStepCompleted = (idx) => {
+  return completedSteps.value.has(idx)
+}
+
+const isCurrentStep = (idx) => {
+  return idx === firstUncompletedIndex.value
+}
+
+const toggleStep = (idx) => {
+  if (completedSteps.value.has(idx)) {
+    completedSteps.value.delete(idx)
+  } else {
+    completedSteps.value.add(idx)
+  }
+  completedSteps.value = new Set(completedSteps.value)
+  saveProgress()
+}
+
+const getLocalStorageKey = () => {
+  return `recipe_progress_${route.params.id}`
+}
+
+const saveProgress = () => {
+  if (!recipe.value) return
+  const stepArray = Array.from(completedSteps.value).sort((a, b) => a - b)
+  const lastStepIndex = stepArray.length > 0 ? Math.max(...stepArray) : 0
+
+  if (userStore.isLogin) {
+    saveRecipeProgress({
+      userId: userStore.userInfo.id,
+      recipeId: recipe.value.id,
+      completedSteps: JSON.stringify(stepArray),
+      lastStepIndex: lastStepIndex
+    }).catch(e => console.error('保存进度失败', e))
+  } else {
+    try {
+      localStorage.setItem(getLocalStorageKey(), JSON.stringify(stepArray))
+    } catch (e) {
+      console.error('本地保存进度失败', e)
+    }
+  }
+}
+
+const loadProgress = async () => {
+  if (!recipe.value) return
+  try {
+    if (userStore.isLogin) {
+      const progress = await getRecipeProgress(userStore.userInfo.id, recipe.value.id)
+      if (progress && progress.completedSteps) {
+        const stepArray = JSON.parse(progress.completedSteps)
+        completedSteps.value = new Set(stepArray)
+      }
+    } else {
+      const localData = localStorage.getItem(getLocalStorageKey())
+      if (localData) {
+        const stepArray = JSON.parse(localData)
+        completedSteps.value = new Set(stepArray)
+      }
+    }
+    isProgressLoaded.value = true
+    nextTick(() => {
+      scrollToFirstUncompleted()
+    })
+  } catch (e) {
+    console.error('加载进度失败', e)
+    isProgressLoaded.value = true
+  }
+}
+
+const scrollToFirstUncompleted = () => {
+  if (firstUncompletedIndex.value >= 0 && stepRefs.value[firstUncompletedIndex.value]) {
+    stepRefs.value[firstUncompletedIndex.value].scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    })
+  }
+}
+
+const handleResetProgress = async () => {
+  try {
+    await ElMessageBox.confirm('确定要重置制作进度吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    if (userStore.isLogin) {
+      await resetRecipeProgress(userStore.userInfo.id, recipe.value.id)
+    } else {
+      localStorage.removeItem(getLocalStorageKey())
+    }
+    completedSteps.value = new Set()
+    ElMessage.success('进度已重置')
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
+}
+
 const getDifficultyText = (level) => {
   const map = { 1: '简单', 2: '中等', 3: '困难' }
   return map[level] || '简单'
@@ -225,6 +367,7 @@ const loadRecipe = async () => {
     if (userStore.isLogin) {
       isFavorited.value = await checkFavorite(userStore.userInfo.id, route.params.id)
     }
+    loadProgress()
   } catch (e) {
     console.error(e)
   } finally {
@@ -458,6 +601,28 @@ const likeComment = async (id) => {
   border-left: 4px solid #ff6b6b;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header .section-title {
+  margin-bottom: 0;
+}
+
+.progress-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-text {
+  font-size: 14px;
+  color: #666;
+}
+
 .ingredients-list {
   background: #faf7f2;
   border-radius: 8px;
@@ -487,12 +652,45 @@ const likeComment = async (id) => {
 .steps-list {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .step-item {
   display: flex;
-  gap: 16px;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  background: #fafafa;
+}
+
+.step-item:hover {
+  background: #f5f5f5;
+}
+
+.step-item.step-completed {
+  background: #f0f9eb;
+  opacity: 0.7;
+}
+
+.step-item.step-completed .step-content p {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.step-item.step-current {
+  border-color: #ff6b6b;
+  background: #fff5f5;
+  box-shadow: 0 2px 12px rgba(255, 107, 107, 0.15);
+}
+
+.step-checkbox {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 6px;
+  flex-shrink: 0;
 }
 
 .step-number {
@@ -506,6 +704,15 @@ const likeComment = async (id) => {
   justify-content: center;
   font-weight: 600;
   flex-shrink: 0;
+}
+
+.step-completed .step-number {
+  background: #67c23a;
+}
+
+.step-content {
+  flex: 1;
+  min-width: 0;
 }
 
 .step-content p {

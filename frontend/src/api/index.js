@@ -227,3 +227,27 @@ export const deleteBakePlan = (id, userId) => {
     params: { userId }
   })
 }
+
+export const getRecipeProgress = (userId, recipeId) => {
+  return request({
+    url: '/recipe-progress',
+    method: 'get',
+    params: { userId, recipeId }
+  })
+}
+
+export const saveRecipeProgress = (data) => {
+  return request({
+    url: '/recipe-progress',
+    method: 'post',
+    data
+  })
+}
+
+export const resetRecipeProgress = (userId, recipeId) => {
+  return request({
+    url: '/recipe-progress',
+    method: 'delete',
+    params: { userId, recipeId }
+  })
+}
