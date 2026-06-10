@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS `recipe` (
   `like_count` int DEFAULT 0 COMMENT '点赞数',
   `comment_count` int DEFAULT 0 COMMENT '评论数',
   `favorite_count` int DEFAULT 0 COMMENT '收藏数',
+  `trial_receipt_count` int DEFAULT 0 COMMENT '试做回执数量',
   `status` tinyint DEFAULT 1 COMMENT '状态：0-草稿 1-已发布',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -298,5 +299,22 @@ INSERT INTO `ingredient_alias` (`canonical_name`, `alias_name`) VALUES
 ('马苏里拉奶酪', '马苏里拉芝士'),
 ('马苏里拉奶酪', '马苏里拉奶酪')
 ON DUPLICATE KEY UPDATE `canonical_name` = VALUES(`canonical_name`);
+
+CREATE TABLE IF NOT EXISTS `trial_receipt` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `recipe_id` bigint NOT NULL COMMENT '配方ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `success` tinyint NOT NULL DEFAULT 1 COMMENT '是否成功：0-失败 1-成功',
+  `taste_rating` tinyint DEFAULT NULL COMMENT '口感评分：1-5星',
+  `taste_comment` varchar(500) DEFAULT NULL COMMENT '口感评价',
+  `temp_adjustment` varchar(500) DEFAULT NULL COMMENT '温度调整',
+  `mold_difference` varchar(500) DEFAULT NULL COMMENT '模具差异',
+  `notes` varchar(1000) DEFAULT NULL COMMENT '其他备注',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_recipe_id` (`recipe_id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试做回执表';
 
 SET FOREIGN_KEY_CHECKS = 1;

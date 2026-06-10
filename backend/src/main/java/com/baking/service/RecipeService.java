@@ -76,6 +76,7 @@ public class RecipeService {
         recipe.setLikeCount(0);
         recipe.setCommentCount(0);
         recipe.setFavoriteCount(0);
+        recipe.setTrialReceiptCount(0);
         recipe.setStatus(1);
 
         String normalizedIngredients = ingredientAliasService.normalizeIngredientsJson(recipe.getIngredients());
@@ -124,6 +125,14 @@ public class RecipeService {
         Recipe recipe = recipeMapper.selectById(recipeId);
         if (recipe != null) {
             recipe.setCommentCount(Math.max(0, recipe.getCommentCount() + delta));
+            recipeMapper.updateById(recipe);
+        }
+    }
+
+    public void incrementTrialReceiptCount(Long recipeId, int delta) {
+        Recipe recipe = recipeMapper.selectById(recipeId);
+        if (recipe != null) {
+            recipe.setTrialReceiptCount(Math.max(0, recipe.getTrialReceiptCount() + delta));
             recipeMapper.updateById(recipe);
         }
     }

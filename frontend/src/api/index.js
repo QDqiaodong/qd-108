@@ -251,3 +251,19 @@ export const resetRecipeProgress = (userId, recipeId) => {
     params: { userId, recipeId }
   })
 }
+
+export const getTrialReceipts = (params) => {
+  return request({
+    url: '/trial-receipts',
+    method: 'get',
+    params
+  })
+}
+
+export const addTrialReceipt = (data) => {
+  return request({
+    url: '/trial-receipts',
+    method: 'post',
+    data
+  })
+}

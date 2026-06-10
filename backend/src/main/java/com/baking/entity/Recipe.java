@@ -47,6 +47,8 @@ public class Recipe {
 
     private Integer favoriteCount;
 
+    private Integer trialReceiptCount;
+
     private Integer status;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

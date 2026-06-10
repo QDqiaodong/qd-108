@@ -34,6 +34,13 @@
             </div>
             <div class="actions">
               <el-button
+                type="success"
+                @click="openTrialReceiptDialog"
+              >
+                <el-icon style="margin-right: 4px;"><DocumentAdd /></el-icon>
+                提交试做回执
+              </el-button>
+              <el-button
                 :type="cookingMode ? 'warning' : 'default'"
                 @click="toggleCookingMode"
               >
@@ -64,6 +71,10 @@
             <div class="stat-item">
               <span class="stat-value">{{ recipe.commentCount || 0 }}</span>
               <span class="stat-label">评论</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ recipe.trialReceiptCount || 0 }}</span>
+              <span class="stat-label">试做</span>
             </div>
           </div>
 
@@ -182,6 +193,68 @@
             </div>
           </div>
         </div>
+
+        <div class="content-section">
+          <h2 class="section-title">
+            试做回执 ({{ recipe.trialReceiptCount || 0 }})
+            <el-button
+              type="success"
+              size="small"
+              style="margin-left: 12px;"
+              @click="openTrialReceiptDialog"
+            >
+              我也试做了
+            </el-button>
+          </h2>
+
+          <div class="trial-receipts-list" v-loading="trialReceiptsLoading">
+            <div v-if="!trialReceipts.length && !trialReceiptsLoading" class="empty-trial-receipts">
+              <p>还没有试做回执，快来分享你的试做体验吧！</p>
+            </div>
+            <div v-for="receipt in trialReceipts" :key="receipt.id" class="trial-receipt-item">
+              <div class="trial-receipt-header">
+                <el-avatar :size="36" :src="receipt.userAvatar">
+                  {{ receipt.userName?.charAt(0) }}
+                </el-avatar>
+                <div class="trial-receipt-user-info">
+                  <span class="trial-receipt-user">{{ receipt.userName }}</span>
+                  <span class="trial-receipt-time">{{ receipt.createdAt }}</span>
+                </div>
+                <el-tag
+                  :type="receipt.success === 1 ? 'success' : 'danger'"
+                  effect="light"
+                  size="small"
+                >
+                  {{ receipt.success === 1 ? '试做成功' : '试做失败' }}
+                </el-tag>
+              </div>
+
+              <div class="trial-receipt-rating" v-if="receipt.tasteRating">
+                <span class="rating-label">口感评分：</span>
+                <el-rate :model-value="receipt.tasteRating" disabled size="small" />
+              </div>
+
+              <div class="trial-receipt-fields">
+                <div class="trial-receipt-field" v-if="receipt.tasteComment">
+                  <span class="field-label">口感评价：</span>
+                  <span class="field-value">{{ receipt.tasteComment }}</span>
+                </div>
+                <div class="trial-receipt-field" v-if="receipt.tempAdjustment">
+                  <span class="field-label">温度调整：</span>
+                  <span class="field-value">{{ receipt.tempAdjustment }}</span>
+                </div>
+                <div class="trial-receipt-field" v-if="receipt.moldDifference">
+                  <span class="field-label">模具差异：</span>
+                  <span class="field-value">{{ receipt.moldDifference }}</span>
+                </div>
+                <div class="trial-receipt-field" v-if="receipt.notes">
+                  <span class="field-label">其他备注：</span>
+                  <span class="field-value">{{ receipt.notes }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -212,6 +285,77 @@
       </div>
     </Transition>
 
+    <el-dialog
+      v-model="showTrialReceiptDialog"
+      title="提交试做回执"
+      width="560px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="trialReceiptForm" label-width="100px">
+        <el-form-item label="是否成功">
+          <el-radio-group v-model="trialReceiptForm.success">
+            <el-radio :label="1">成功</el-radio>
+            <el-radio :label="0">失败</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item label="口感评分">
+          <el-rate v-model="trialReceiptForm.tasteRating" />
+        </el-form-item>
+
+        <el-form-item label="口感评价">
+          <el-input
+            v-model="trialReceiptForm.tasteComment"
+            type="textarea"
+            :rows="2"
+            placeholder="分享一下口感如何..."
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="温度调整">
+          <el-input
+            v-model="trialReceiptForm.tempAdjustment"
+            type="textarea"
+            :rows="2"
+            placeholder="温度做了什么调整？比如降低了10度..."
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="模具差异">
+          <el-input
+            v-model="trialReceiptForm.moldDifference"
+            type="textarea"
+            :rows="2"
+            placeholder="用了什么模具？和配方有何不同..."
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="其他备注">
+          <el-input
+            v-model="trialReceiptForm.notes"
+            type="textarea"
+            :rows="3"
+            placeholder="其他想分享的内容..."
+            maxlength="1000"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="showTrialReceiptDialog = false">取消</el-button>
+        <el-button type="primary" :loading="submittingTrialReceipt" @click="submitTrialReceipt">
+          提交
+        </el-button>
+      </template>
+    </el-dialog>
+
     <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" />
   </div>
 </template>
@@ -220,7 +364,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled, Sunny } from '@element-plus/icons-vue'
+import { Star, StarFilled, Sunny, DocumentAdd } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import RecipeTimer from '@/components/RecipeTimer.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
@@ -234,7 +378,9 @@ import {
   likeComment as likeCommentApi,
   getRecipeProgress,
   saveRecipeProgress,
-  resetRecipeProgress
+  resetRecipeProgress,
+  getTrialReceipts,
+  addTrialReceipt
 } from '@/api'
 
 const route = useRoute()
@@ -249,6 +395,19 @@ const commentsLoading = ref(false)
 const showLogin = ref(false)
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
+
+const showTrialReceiptDialog = ref(false)
+const trialReceipts = ref([])
+const trialReceiptsLoading = ref(false)
+const trialReceiptForm = ref({
+  success: 1,
+  tasteRating: 0,
+  tasteComment: '',
+  tempAdjustment: '',
+  moldDifference: '',
+  notes: ''
+})
+const submittingTrialReceipt = ref(false)
 
 const completedSteps = ref(new Set())
 const stepRefs = ref([])
@@ -493,6 +652,7 @@ const handleVisibilityChange = async () => {
 onMounted(() => {
   loadRecipe()
   loadComments()
+  loadTrialReceipts()
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
@@ -589,6 +749,60 @@ const likeComment = async (id) => {
     if (comment) comment.likeCount++
   } catch (e) {
     console.error(e)
+  }
+}
+
+const loadTrialReceipts = async () => {
+  trialReceiptsLoading.value = true
+  try {
+    const res = await getTrialReceipts({ recipeId: route.params.id, pageNum: 1, pageSize: 20 })
+    trialReceipts.value = res.records || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    trialReceiptsLoading.value = false
+  }
+}
+
+const openTrialReceiptDialog = () => {
+  if (!userStore.isLogin) {
+    showLogin.value = true
+    return
+  }
+  trialReceiptForm.value = {
+    success: 1,
+    tasteRating: 0,
+    tasteComment: '',
+    tempAdjustment: '',
+    moldDifference: '',
+    notes: ''
+  }
+  showTrialReceiptDialog.value = true
+}
+
+const submitTrialReceipt = async () => {
+  submittingTrialReceipt.value = true
+  try {
+    const form = trialReceiptForm.value
+    await addTrialReceipt({
+      recipeId: route.params.id,
+      userId: userStore.userInfo.id,
+      success: form.success,
+      tasteRating: form.tasteRating || null,
+      tasteComment: form.tasteComment.trim() || null,
+      tempAdjustment: form.tempAdjustment.trim() || null,
+      moldDifference: form.moldDifference.trim() || null,
+      notes: form.notes.trim() || null
+    })
+    recipe.value.trialReceiptCount = (recipe.value.trialReceiptCount || 0) + 1
+    showTrialReceiptDialog.value = false
+    ElMessage.success('试做回执提交成功')
+    loadTrialReceipts()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('提交失败，请重试')
+  } finally {
+    submittingTrialReceipt.value = false
   }
 }
 </script>
@@ -1081,6 +1295,92 @@ const likeComment = async (id) => {
   padding-bottom: 80px;
 }
 
+.trial-receipts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.empty-trial-receipts {
+  text-align: center;
+  padding: 40px 0;
+  color: #999;
+}
+
+.empty-trial-receipts p {
+  font-size: 14px;
+}
+
+.trial-receipt-item {
+  padding: 20px;
+  background: #faf7f2;
+  border-radius: 12px;
+  border: 1px solid #f0ebe3;
+}
+
+.trial-receipt-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.trial-receipt-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.trial-receipt-user {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.trial-receipt-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.trial-receipt-rating {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-left: 48px;
+}
+
+.rating-label {
+  font-size: 13px;
+  color: #666;
+  margin-right: 8px;
+}
+
+.trial-receipt-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 48px;
+}
+
+.trial-receipt-field {
+  display: flex;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.field-label {
+  color: #666;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.field-value {
+  color: #333;
+  flex: 1;
+  word-break: break-word;
+}
+
 @media (max-width: 768px) {
   .cooking-bar-inner {
     gap: 16px;
@@ -1098,6 +1398,30 @@ const likeComment = async (id) => {
 
   .cooking-bar-close {
     margin-left: 0;
+  }
+
+  .detail-header {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .recipe-stats {
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .trial-receipt-rating,
+  .trial-receipt-fields {
+    padding-left: 0;
+    margin-top: 12px;
+  }
+
+  .trial-receipt-item {
+    padding: 16px;
   }
 }
 </style>
