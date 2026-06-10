@@ -212,7 +212,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import {
@@ -258,6 +258,86 @@ const planForm = ref({
   reminderTime: null
 })
 
+const notificationPermission = ref('default')
+const notifiedPlans = ref(new Set())
+let reminderTimer = null
+
+const requestNotificationPermission = async () => {
+  if (!('Notification' in window)) {
+    console.log('浏览器不支持通知')
+    return false
+  }
+  if (Notification.permission === 'granted') {
+    notificationPermission.value = 'granted'
+    return true
+  }
+  if (Notification.permission !== 'denied') {
+    const permission = await Notification.requestPermission()
+    notificationPermission.value = permission
+    return permission === 'granted'
+  }
+  return false
+}
+
+const showNotification = (title, body, planId) => {
+  if (Notification.permission === 'granted') {
+    const notification = new Notification(title, {
+      body,
+      icon: '🍰',
+      badge: '🍰'
+    })
+    notification.onclick = () => {
+      window.focus()
+      notification.close()
+    }
+    setTimeout(() => {
+      notification.close()
+    }, 10000)
+  }
+  ElMessage({
+    message: title,
+    type: 'warning',
+    duration: 10000,
+    showClose: true
+  })
+}
+
+const checkReminders = () => {
+  const now = new Date()
+  const nowTime = now.getTime()
+
+  planDates.value.forEach(plan => {
+    if (plan.reminderEnabled !== 1 || !plan.reminderTime) return
+    if (notifiedPlans.value.has(plan.id)) return
+
+    const reminderTime = new Date(plan.reminderTime).getTime()
+    const diff = reminderTime - nowTime
+
+    if (diff >= 0 && diff <= 60000) {
+      const title = '🍰 烘焙计划提醒'
+      const body = plan.recipeName
+        ? `计划烘焙：${plan.recipeName}`
+        : '您有一个烘焙计划即将开始！'
+      showNotification(title, body, plan.id)
+      notifiedPlans.value.add(plan.id)
+    }
+  })
+}
+
+const startReminderCheck = () => {
+  if (reminderTimer) return
+  reminderTimer = setInterval(() => {
+    checkReminders()
+  }, 30000)
+}
+
+const stopReminderCheck = () => {
+  if (reminderTimer) {
+    clearInterval(reminderTimer)
+    reminderTimer = null
+  }
+}
+
 const selectedDateStr = computed(() => {
   if (!selectedDate.value) return ''
   const d = selectedDate.value
@@ -276,8 +356,8 @@ const calendarDays = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const checkInSet = new Set(checkInDates.value.map(d => {
-    const date = new Date(d)
+  const checkInSet = new Set(checkInDates.value.map(item => {
+    const date = new Date(item.checkDate)
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
   }))
 
@@ -433,6 +513,10 @@ const openPlanDialog = () => {
 const handleSavePlan = async () => {
   planSaving.value = true
   try {
+    if (planForm.value.reminderEnabled) {
+      await requestNotificationPermission()
+    }
+
     const dateStr = formatDate(selectedDate.value)
     const data = {
       userId: props.userId,
@@ -446,6 +530,7 @@ const handleSavePlan = async () => {
     if (isEditingPlan.value && dayDetail.value.plan) {
       data.id = dayDetail.value.plan.id
       await updateBakePlan(data)
+      notifiedPlans.value.delete(dayDetail.value.plan.id)
       ElMessage.success('计划更新成功')
     } else {
       await createBakePlan(data)
@@ -491,6 +576,11 @@ watch(() => [currentYear.value, currentMonth.value], () => {
 
 onMounted(() => {
   loadMonthData()
+  startReminderCheck()
+})
+
+onUnmounted(() => {
+  stopReminderCheck()
 })
 
 const refreshCalendar = () => {
