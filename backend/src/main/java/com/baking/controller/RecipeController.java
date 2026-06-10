@@ -27,13 +27,16 @@ public class RecipeController {
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String keyword) {
-        return Result.success(recipeService.getRecipePage(pageNum, pageSize, categoryId, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sortBy) {
+        return Result.success(recipeService.getRecipePage(pageNum, pageSize, categoryId, keyword, sortBy));
     }
 
     @GetMapping("/hot")
-    public Result<List<Recipe>> getHotRecipes(@RequestParam(defaultValue = "10") int limit) {
-        return Result.success(recipeService.getHotRecipes(limit));
+    public Result<List<Recipe>> getHotRecipes(
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Long categoryId) {
+        return Result.success(recipeService.getHotRecipes(limit, categoryId));
     }
 
     @GetMapping("/ingredients/hot")

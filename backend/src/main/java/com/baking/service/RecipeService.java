@@ -12,7 +12,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,25 +37,88 @@ public class RecipeService {
     private static final String HOT_INGREDIENTS_KEY = "ingredient:hot";
     private static final long HOT_INGREDIENTS_TTL = 3600;
 
-    public IPage<Recipe> getRecipePage(int pageNum, int pageSize, Long categoryId, String keyword) {
+    private static final double W_VIEW = 1.0;
+    private static final double W_FAVORITE = 8.0;
+    private static final double W_COMMENT = 6.0;
+    private static final double W_LIKE = 4.0;
+    private static final double W_TRIAL = 10.0;
+    private static final double DECAY_GRAVITY = 1.8;
+
+    public static double calculateBaseScore(Recipe r) {
+        return nullToZero(r.getViewCount()) * W_VIEW
+                + nullToZero(r.getFavoriteCount()) * W_FAVORITE
+                + nullToZero(r.getCommentCount()) * W_COMMENT
+                + nullToZero(r.getLikeCount()) * W_LIKE
+                + nullToZero(r.getTrialReceiptCount()) * W_TRIAL;
+    }
+
+    public static double calculateDecayFactor(LocalDateTime createdAt) {
+        if (createdAt == null) return 0.01;
+        long hours = Duration.between(createdAt, LocalDateTime.now()).toHours();
+        double days = Math.max(0, hours / 24.0);
+        return 1.0 / Math.pow(1.0 + days, DECAY_GRAVITY);
+    }
+
+    public static double calculateHotScore(Recipe r) {
+        double base = calculateBaseScore(r);
+        double decay = calculateDecayFactor(r.getCreatedAt());
+        return base * decay;
+    }
+
+    private static int nullToZero(Integer v) {
+        return v == null ? 0 : v;
+    }
+
+    public IPage<Recipe> getRecipePage(int pageNum, int pageSize, Long categoryId, String keyword, String sortBy) {
         Page<Recipe> page = new Page<>(pageNum, pageSize);
         String searchKeyword = keyword;
         if (keyword != null && !keyword.trim().isEmpty()) {
             searchKeyword = ingredientAliasService.normalize(keyword.trim());
         }
-        return recipeMapper.selectRecipePage(page, categoryId, searchKeyword);
+
+        IPage<Recipe> result;
+        if ("hot".equalsIgnoreCase(sortBy)) {
+            result = recipeMapper.selectRecipePageHot(page, categoryId, searchKeyword);
+            List<Recipe> reranked = result.getRecords().stream()
+                    .sorted(Comparator.comparingDouble(RecipeService::calculateHotScore).reversed())
+                    .collect(Collectors.toList());
+            result.setRecords(reranked);
+        } else {
+            result = recipeMapper.selectRecipePage(page, categoryId, searchKeyword);
+        }
+        return result;
+    }
+
+    public IPage<Recipe> getRecipePage(int pageNum, int pageSize, Long categoryId, String keyword) {
+        return getRecipePage(pageNum, pageSize, categoryId, keyword, null);
     }
 
     @SuppressWarnings("unchecked")
     public List<Recipe> getHotRecipes(int limit) {
-        List<Recipe> cached = (List<Recipe>) redisTemplate.opsForValue().get(HOT_RECIPES_KEY);
-        if (cached != null && !cached.isEmpty()) {
-            return cached;
+        return getHotRecipes(limit, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Recipe> getHotRecipes(int limit, Long categoryId) {
+        String cacheKey = categoryId == null
+                ? HOT_RECIPES_KEY
+                : HOT_RECIPES_KEY + ":" + categoryId;
+
+        List<Recipe> cached = (List<Recipe>) redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null && cached.size() >= limit) {
+            return cached.stream().limit(limit).collect(Collectors.toList());
         }
 
-        List<Recipe> recipes = recipeMapper.selectHotRecipes(limit);
-        redisTemplate.opsForValue().set(HOT_RECIPES_KEY, recipes, HOT_RECIPES_TTL, TimeUnit.SECONDS);
-        return recipes;
+        int candidateLimit = Math.max(limit * 3, 30);
+        List<Recipe> candidates = recipeMapper.selectHotRecipeCandidates(candidateLimit, categoryId);
+
+        List<Recipe> reranked = candidates.stream()
+                .sorted(Comparator.comparingDouble(RecipeService::calculateHotScore).reversed())
+                .limit(candidateLimit)
+                .collect(Collectors.toList());
+
+        redisTemplate.opsForValue().set(cacheKey, reranked, HOT_RECIPES_TTL, TimeUnit.SECONDS);
+        return reranked.stream().limit(limit).collect(Collectors.toList());
     }
 
     public Recipe getRecipeDetail(Long id) {
@@ -94,9 +160,20 @@ public class RecipeService {
             }
         }
 
-        redisTemplate.delete(HOT_RECIPES_KEY);
+        clearAllHotRecipeCaches();
         redisTemplate.delete(HOT_INGREDIENTS_KEY);
         return recipe;
+    }
+
+    private void clearAllHotRecipeCaches() {
+        try {
+            var keys = redisTemplate.keys(HOT_RECIPES_KEY + "*");
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception ignored) {
+            redisTemplate.delete(HOT_RECIPES_KEY);
+        }
     }
 
     public IPage<Recipe> getUserRecipes(Long userId, int pageNum, int pageSize) {
@@ -118,6 +195,7 @@ public class RecipeService {
         if (recipe != null) {
             recipe.setFavoriteCount(Math.max(0, recipe.getFavoriteCount() + delta));
             recipeMapper.updateById(recipe);
+            clearAllHotRecipeCaches();
         }
     }
 
@@ -126,6 +204,7 @@ public class RecipeService {
         if (recipe != null) {
             recipe.setCommentCount(Math.max(0, recipe.getCommentCount() + delta));
             recipeMapper.updateById(recipe);
+            clearAllHotRecipeCaches();
         }
     }
 
@@ -134,6 +213,7 @@ public class RecipeService {
         if (recipe != null) {
             recipe.setTrialReceiptCount(Math.max(0, recipe.getTrialReceiptCount() + delta));
             recipeMapper.updateById(recipe);
+            clearAllHotRecipeCaches();
         }
     }
 

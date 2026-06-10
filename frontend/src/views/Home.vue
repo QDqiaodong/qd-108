@@ -134,10 +134,7 @@ const loadHotRecipes = async () => {
     hotRecipes.value = res.records || []
   } catch (e) {
     try {
-      hotRecipes.value = (await getHotRecipes(8)) || []
-      if (activeCategoryId.value) {
-        hotRecipes.value = hotRecipes.value.filter(r => r.categoryId == activeCategoryId.value)
-      }
+      hotRecipes.value = (await getHotRecipes(8, activeCategoryId.value || null)) || []
     } catch (e2) {
       console.error(e2)
     }

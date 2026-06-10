@@ -15,11 +15,11 @@ export const getRecipes = (params) => {
   })
 }
 
-export const getHotRecipes = (limit = 10) => {
+export const getHotRecipes = (limit = 10, categoryId = null) => {
   return request({
     url: '/recipes/hot',
     method: 'get',
-    params: { limit }
+    params: { limit, categoryId }
   })
 }
 
