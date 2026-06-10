@@ -16,7 +16,9 @@ public interface RecipeMapper extends BaseMapper<Recipe> {
             "LEFT JOIN user u ON r.user_id = u.id " +
             "WHERE r.status = 1 " +
             "AND (#{categoryId} IS NULL OR r.category_id = #{categoryId}) " +
-            "AND (#{keyword} IS NULL OR r.title LIKE CONCAT('%', #{keyword}, '%')) " +
+            "AND (#{keyword} IS NULL OR #{keyword} = '' " +
+            "OR r.title LIKE CONCAT('%', #{keyword}, '%') " +
+            "OR r.ingredients LIKE CONCAT('%', #{keyword}, '%')) " +
             "ORDER BY r.created_at DESC")
     IPage<Recipe> selectRecipePage(Page<Recipe> page,
                                     @Param("categoryId") Long categoryId,

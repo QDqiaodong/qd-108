@@ -12,8 +12,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,13 +27,20 @@ public class RecipeService {
     private final RecipeMapper recipeMapper;
     private final RecipeImageMapper recipeImageMapper;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final IngredientAliasService ingredientAliasService;
 
     private static final String HOT_RECIPES_KEY = "recipe:hot";
     private static final long HOT_RECIPES_TTL = 3600;
+    private static final String HOT_INGREDIENTS_KEY = "ingredient:hot";
+    private static final long HOT_INGREDIENTS_TTL = 3600;
 
     public IPage<Recipe> getRecipePage(int pageNum, int pageSize, Long categoryId, String keyword) {
         Page<Recipe> page = new Page<>(pageNum, pageSize);
-        return recipeMapper.selectRecipePage(page, categoryId, keyword);
+        String searchKeyword = keyword;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            searchKeyword = ingredientAliasService.normalize(keyword.trim());
+        }
+        return recipeMapper.selectRecipePage(page, categoryId, searchKeyword);
     }
 
     @SuppressWarnings("unchecked")
@@ -65,6 +77,10 @@ public class RecipeService {
         recipe.setCommentCount(0);
         recipe.setFavoriteCount(0);
         recipe.setStatus(1);
+
+        String normalizedIngredients = ingredientAliasService.normalizeIngredientsJson(recipe.getIngredients());
+        recipe.setIngredients(normalizedIngredients);
+
         recipeMapper.insert(recipe);
 
         if (imageUrls != null && !imageUrls.isEmpty()) {
@@ -78,6 +94,7 @@ public class RecipeService {
         }
 
         redisTemplate.delete(HOT_RECIPES_KEY);
+        redisTemplate.delete(HOT_INGREDIENTS_KEY);
         return recipe;
     }
 
@@ -109,5 +126,69 @@ public class RecipeService {
             recipe.setCommentCount(Math.max(0, recipe.getCommentCount() + delta));
             recipeMapper.updateById(recipe);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getHotIngredients(int limit) {
+        List<Map<String, Object>> cached = (List<Map<String, Object>>) redisTemplate.opsForValue().get(HOT_INGREDIENTS_KEY);
+        if (cached != null && !cached.isEmpty()) {
+            return cached.stream().limit(limit).collect(Collectors.toList());
+        }
+
+        List<Map<String, Object>> hotIngredients = calculateHotIngredients();
+        redisTemplate.opsForValue().set(HOT_INGREDIENTS_KEY, hotIngredients, HOT_INGREDIENTS_TTL, TimeUnit.SECONDS);
+        return hotIngredients.stream().limit(limit).collect(Collectors.toList());
+    }
+
+    private List<Map<String, Object>> calculateHotIngredients() {
+        LambdaQueryWrapper<Recipe> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Recipe::getStatus, 1);
+        wrapper.select(Recipe::getIngredients);
+        List<Recipe> recipes = recipeMapper.selectList(wrapper);
+
+        Map<String, Integer> ingredientCount = new HashMap<>();
+        for (Recipe recipe : recipes) {
+            List<String> normalizedNames = ingredientAliasService.extractAndNormalizeIngredientNames(recipe.getIngredients());
+            for (String name : normalizedNames) {
+                ingredientCount.put(name, ingredientCount.getOrDefault(name, 0) + 1);
+            }
+        }
+
+        return ingredientCount.entrySet().stream()
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                .map(entry -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("name", entry.getKey());
+                    item.put("count", entry.getValue());
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<Map<String, Object>> getFavoriteIngredientsSummary(Long userId) {
+        IPage<Recipe> page = getFavoriteRecipes(userId, 1, Integer.MAX_VALUE);
+        List<Recipe> recipes = page.getRecords();
+
+        Map<String, Integer> ingredientCount = new HashMap<>();
+        for (Recipe recipe : recipes) {
+            List<String> normalizedNames = ingredientAliasService.extractAndNormalizeIngredientNames(recipe.getIngredients());
+            for (String name : normalizedNames) {
+                ingredientCount.put(name, ingredientCount.getOrDefault(name, 0) + 1);
+            }
+        }
+
+        return ingredientCount.entrySet().stream()
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                .map(entry -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("name", entry.getKey());
+                    item.put("count", entry.getValue());
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public void refreshHotIngredientsCache() {
+        redisTemplate.delete(HOT_INGREDIENTS_KEY);
     }
 }

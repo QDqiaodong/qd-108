@@ -36,6 +36,11 @@ public class RecipeController {
         return Result.success(recipeService.getHotRecipes(limit));
     }
 
+    @GetMapping("/ingredients/hot")
+    public Result<List<Map<String, Object>>> getHotIngredients(@RequestParam(defaultValue = "20") int limit) {
+        return Result.success(recipeService.getHotIngredients(limit));
+    }
+
     @GetMapping("/{id}")
     public Result<Recipe> getRecipeDetail(@PathVariable Long id) {
         return Result.success(recipeService.getRecipeDetail(id));

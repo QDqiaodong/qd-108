@@ -5,6 +5,7 @@ import com.baking.entity.FavoriteFolder;
 import com.baking.entity.UserAchievement;
 import com.baking.service.AchievementService;
 import com.baking.service.FavoriteService;
+import com.baking.service.RecipeService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ public class FavoriteController {
 
     private final FavoriteService favoriteService;
     private final AchievementService achievementService;
+    private final RecipeService recipeService;
 
     @GetMapping("/check")
     public Result<Boolean> isFavorited(@RequestParam Long userId, @RequestParam Long recipeId) {
@@ -58,6 +60,11 @@ public class FavoriteController {
     public Result<Void> deleteFolder(@PathVariable Long userId, @PathVariable Long folderId) {
         favoriteService.deleteFolder(userId, folderId);
         return Result.success();
+    }
+
+    @GetMapping("/ingredients/summary/{userId}")
+    public Result<List<Map<String, Object>>> getFavoriteIngredientsSummary(@PathVariable Long userId) {
+        return Result.success(recipeService.getFavoriteIngredientsSummary(userId));
     }
 
     @Data
