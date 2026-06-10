@@ -6,23 +6,12 @@
         <p class="page-desc">发现更多美味的烘焙配方</p>
       </div>
 
-      <div class="category-tabs">
-        <div
-          class="tab-item"
-          :class="{ active: !currentCategoryId }"
-          @click="$router.push('/search')"
-        >
-          全部
-        </div>
-        <div
-          v-for="cat in categories"
-          :key="cat.id"
-          class="tab-item"
-          :class="{ active: currentCategoryId == cat.id }"
-          @click="$router.push(`/category/${cat.id}`)"
-        >
-          {{ cat.name }}
-        </div>
+      <div class="ribbon-wrap">
+        <CategoryRibbon
+          :categories="categories"
+          :active-category-id="currentCategoryId || null"
+          @change="handleRibbonChange"
+        />
       </div>
 
       <div v-loading="loading" class="recipe-grid">
@@ -48,11 +37,13 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getCategories, getRecipes } from '@/api'
 import RecipeCard from '@/components/RecipeCard.vue'
+import CategoryRibbon from '@/components/CategoryRibbon.vue'
 
 const route = useRoute()
+const router = useRouter()
 const categories = ref([])
 const recipes = ref([])
 const loading = ref(false)
@@ -74,6 +65,14 @@ watch(() => route.params.id, () => {
   pageNum.value = 1
   loadRecipes()
 })
+
+const handleRibbonChange = (id) => {
+  if (id) {
+    router.push(`/category/${id}`)
+  } else {
+    router.push('/search')
+  }
+}
 
 const loadCategories = async () => {
   try {
@@ -108,7 +107,7 @@ const loadRecipes = async () => {
 
 .category-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .page-title {
@@ -123,28 +122,12 @@ const loadRecipes = async () => {
   color: #999;
 }
 
-.category-tabs {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.tab-item {
-  padding: 8px 24px;
+.ribbon-wrap {
   background: #fff;
-  border-radius: 20px;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-size: 14px;
-}
-
-.tab-item:hover,
-.tab-item.active {
-  background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
-  color: #fff;
+  border-radius: 16px;
+  padding: 20px 24px 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 30px;
 }
 
 .recipe-grid {
@@ -161,5 +144,21 @@ const loadRecipes = async () => {
   margin-top: 40px;
   display: flex;
   justify-content: center;
+}
+
+@media (max-width: 1024px) {
+  .recipe-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .recipe-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  .page-title {
+    font-size: 24px;
+  }
 }
 </style>
