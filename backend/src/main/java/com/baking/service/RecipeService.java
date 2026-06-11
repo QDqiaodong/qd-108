@@ -3,6 +3,8 @@ package com.baking.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baking.dto.CategoryBakeStats;
+import com.baking.entity.Category;
 import com.baking.entity.Recipe;
 import com.baking.entity.RecipeImage;
 import com.baking.mapper.RecipeImageMapper;
@@ -31,11 +33,14 @@ public class RecipeService {
     private final RecipeImageMapper recipeImageMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final IngredientAliasService ingredientAliasService;
+    private final CategoryService categoryService;
 
     private static final String HOT_RECIPES_KEY = "recipe:hot";
     private static final long HOT_RECIPES_TTL = 3600;
     private static final String HOT_INGREDIENTS_KEY = "ingredient:hot";
     private static final long HOT_INGREDIENTS_TTL = 3600;
+    private static final String CATEGORY_BAKE_STATS_KEY = "recipe:category:bake-stats";
+    private static final long CATEGORY_BAKE_STATS_TTL = 3600;
 
     private static final double W_VIEW = 1.0;
     private static final double W_FAVORITE = 8.0;
@@ -175,6 +180,7 @@ public class RecipeService {
 
         clearAllHotRecipeCaches();
         redisTemplate.delete(HOT_INGREDIENTS_KEY);
+        refreshCategoryBakeStatsCache();
         return recipe;
     }
 
@@ -299,5 +305,92 @@ public class RecipeService {
             return new ArrayList<>();
         }
         return recipeMapper.selectRecipesByIds(ids);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<CategoryBakeStats> getCategoryBakeStats() {
+        List<CategoryBakeStats> cached = (List<CategoryBakeStats>) redisTemplate.opsForValue().get(CATEGORY_BAKE_STATS_KEY);
+        if (cached != null && !cached.isEmpty()) {
+            return cached;
+        }
+
+        List<CategoryBakeStats> stats = calculateCategoryBakeStats();
+        redisTemplate.opsForValue().set(CATEGORY_BAKE_STATS_KEY, stats, CATEGORY_BAKE_STATS_TTL, TimeUnit.SECONDS);
+        return stats;
+    }
+
+    public CategoryBakeStats getCategoryBakeStats(Long categoryId) {
+        if (categoryId == null) return null;
+        return getCategoryBakeStats().stream()
+                .filter(s -> categoryId.equals(s.getCategoryId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<CategoryBakeStats> calculateCategoryBakeStats() {
+        List<Category> categories = categoryService.getAllCategories();
+        List<CategoryBakeStats> result = new ArrayList<>();
+
+        for (Category category : categories) {
+            List<Map<String, Object>> rawData = recipeMapper.selectBakeParamsForStats(category.getId());
+            if (rawData == null || rawData.size() < 3) {
+                continue;
+            }
+
+            List<Integer> temps = new ArrayList<>();
+            List<Integer> times = new ArrayList<>();
+
+            for (Map<String, Object> row : rawData) {
+                Object tempObj = row.get("bake_temp");
+                Object timeObj = row.get("bake_time");
+                if (tempObj != null && timeObj != null) {
+                    temps.add(((Number) tempObj).intValue());
+                    times.add(((Number) timeObj).intValue());
+                }
+            }
+
+            if (temps.size() < 3) continue;
+
+            CategoryBakeStats stats = new CategoryBakeStats();
+            stats.setCategoryId(category.getId());
+            stats.setCategoryName(category.getName());
+            stats.setSampleCount(temps.size());
+
+            temps.sort(Integer::compareTo);
+            times.sort(Integer::compareTo);
+
+            stats.setTempMin(temps.get(0));
+            stats.setTempMax(temps.get(temps.size() - 1));
+            stats.setTempP25(percentile(temps, 25));
+            stats.setTempP75(percentile(temps, 75));
+            stats.setTempAvg(temps.stream().mapToInt(Integer::intValue).average().orElse(0));
+
+            stats.setTimeMin(times.get(0));
+            stats.setTimeMax(times.get(times.size() - 1));
+            stats.setTimeP25(percentile(times, 25));
+            stats.setTimeP75(percentile(times, 75));
+            stats.setTimeAvg(times.stream().mapToInt(Integer::intValue).average().orElse(0));
+
+            result.add(stats);
+        }
+
+        return result;
+    }
+
+    private int percentile(List<Integer> sortedList, int percentile) {
+        if (sortedList == null || sortedList.isEmpty()) return 0;
+        int n = sortedList.size();
+        double index = (percentile / 100.0) * (n - 1);
+        int lower = (int) Math.floor(index);
+        int upper = (int) Math.ceil(index);
+        if (lower == upper) {
+            return sortedList.get(lower);
+        }
+        double weight = index - lower;
+        return (int) Math.round(sortedList.get(lower) * (1 - weight) + sortedList.get(upper) * weight);
+    }
+
+    public void refreshCategoryBakeStatsCache() {
+        redisTemplate.delete(CATEGORY_BAKE_STATS_KEY);
     }
 }

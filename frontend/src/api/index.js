@@ -283,3 +283,17 @@ export const getIngredientAliasMap = () => {
     method: 'get'
   })
 }
+
+export const getRecipeBakeStats = (recipeId) => {
+  return request({
+    url: `/recipes/${recipeId}/bake-stats`,
+    method: 'get'
+  })
+}
+
+export const getCategoryBakeStats = () => {
+  return request({
+    url: '/recipes/category/bake-stats',
+    method: 'get'
+  })
+}

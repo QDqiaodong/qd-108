@@ -2,6 +2,7 @@ package com.baking.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baking.common.Result;
+import com.baking.dto.CategoryBakeStats;
 import com.baking.entity.Recipe;
 import com.baking.entity.UserAchievement;
 import com.baking.service.AchievementService;
@@ -47,6 +48,20 @@ public class RecipeController {
     @GetMapping("/{id}")
     public Result<Recipe> getRecipeDetail(@PathVariable Long id) {
         return Result.success(recipeService.getRecipeDetail(id));
+    }
+
+    @GetMapping("/category/bake-stats")
+    public Result<List<CategoryBakeStats>> getCategoryBakeStats() {
+        return Result.success(recipeService.getCategoryBakeStats());
+    }
+
+    @GetMapping("/{id}/bake-stats")
+    public Result<CategoryBakeStats> getRecipeCategoryBakeStats(@PathVariable Long id) {
+        Recipe recipe = recipeService.getRecipeDetail(id);
+        if (recipe == null) {
+            return Result.success(null);
+        }
+        return Result.success(recipeService.getCategoryBakeStats(recipe.getCategoryId()));
     }
 
     @PostMapping

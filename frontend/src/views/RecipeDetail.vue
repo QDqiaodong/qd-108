@@ -101,6 +101,50 @@
               {{ recipe.servings }}人份
             </el-tag>
           </div>
+
+          <div class="bake-stats-reference" v-if="bakeStats && !bakeStatsLoading" v-loading="bakeStatsLoading">
+            <div class="stats-header">
+              <el-icon style="margin-right: 6px;"><DataAnalysis /></el-icon>
+              <span class="stats-title">同品类参数参考</span>
+              <span class="stats-sample">（基于 {{ bakeStats.sampleCount }} 个配方）</span>
+            </div>
+
+            <div class="deviation-warnings" v-if="hasDeviation">
+              <el-alert v-if="tempDeviationNote" :title="tempDeviationNote" type="warning" :closable="false" show-icon size="small" style="margin-bottom: 8px;" />
+              <el-alert v-if="timeDeviationNote" :title="timeDeviationNote" type="warning" :closable="false" show-icon size="small" />
+            </div>
+
+            <div class="stats-grid">
+              <div class="stats-item">
+                <div class="stats-item-label">
+                  <el-icon style="color: #f56c6c; margin-right: 4px;"><HotWater /></el-icon>
+                  常见温度
+                </div>
+                <div class="stats-item-value">
+                  <span :class="{ 'value-normal': !isTempDeviated, 'value-deviated': isTempDeviated }">{{ bakeStats.tempP25 }}~{{ bakeStats.tempP75 }}℃</span>
+                </div>
+                <div class="stats-item-range">范围 {{ bakeStats.tempMin }}~{{ bakeStats.tempMax }}℃</div>
+              </div>
+              <div class="stats-item">
+                <div class="stats-item-label">
+                  <el-icon style="color: #67c23a; margin-right: 4px;"><Timer /></el-icon>
+                  常见时长
+                </div>
+                <div class="stats-item-value">
+                  <span :class="{ 'value-normal': !isTimeDeviated, 'value-deviated': isTimeDeviated }">{{ bakeStats.timeP25 }}~{{ bakeStats.timeP75 }}分钟</span>
+                </div>
+                <div class="stats-item-range">范围 {{ bakeStats.timeMin }}~{{ bakeStats.timeMax }}分钟</div>
+              </div>
+              <div class="stats-item">
+                <div class="stats-item-label">
+                  <el-icon style="color: #e6a23c; margin-right: 4px;"><TrendCharts /></el-icon>
+                  平均温度
+                </div>
+                <div class="stats-item-value">{{ Math.round(bakeStats.tempAvg) }}℃</div>
+                <div class="stats-item-range">平均时长 {{ Math.round(bakeStats.timeAvg) }}分钟</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -453,7 +497,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled, VideoPlay, Plus } from '@element-plus/icons-vue'
+import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled, VideoPlay, Plus, DataAnalysis, HotWater, Timer, TrendCharts } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useIngredientScaler } from '@/composables/useIngredientScaler'
 import { useExecutionMode } from '@/composables/useExecutionMode'
@@ -474,7 +518,8 @@ import {
   resetRecipeProgress,
   getTrialReceipts,
   addTrialReceipt,
-  uploadImage
+  uploadImage,
+  getRecipeBakeStats
 } from '@/api'
 
 const route = useRoute()
@@ -489,6 +534,8 @@ const commentsLoading = ref(false)
 const showLogin = ref(false)
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
+const bakeStats = ref(null)
+const bakeStatsLoading = ref(false)
 
 const showTrialReceiptDialog = ref(false)
 const trialReceipts = ref([])
@@ -535,6 +582,42 @@ const steps = computed(() => {
     return []
   }
 })
+
+const isTempDeviated = computed(() => {
+  if (!recipe.value?.bakeTemp || !bakeStats.value) return false
+  const { tempP25, tempP75 } = bakeStats.value
+  if (tempP25 == null || tempP75 == null) return false
+  return recipe.value.bakeTemp < tempP25 - 10 || recipe.value.bakeTemp > tempP75 + 10
+})
+
+const isTimeDeviated = computed(() => {
+  if (!recipe.value?.bakeTime || !bakeStats.value) return false
+  const { timeP25, timeP75 } = bakeStats.value
+  if (timeP25 == null || timeP75 == null) return false
+  return recipe.value.bakeTime < timeP25 - 5 || recipe.value.bakeTime > timeP75 + 5
+})
+
+const tempDeviationNote = computed(() => {
+  if (!isTempDeviated.value || !bakeStats.value) return null
+  const { tempP25, tempP75, categoryName } = bakeStats.value
+  if (recipe.value.bakeTemp < tempP25 - 10) {
+    return `温度偏低，${categoryName}类常见温度区间为 ${tempP25}~${tempP75}℃`
+  } else {
+    return `温度偏高，${categoryName}类常见温度区间为 ${tempP25}~${tempP75}℃`
+  }
+})
+
+const timeDeviationNote = computed(() => {
+  if (!isTimeDeviated.value || !bakeStats.value) return null
+  const { timeP25, timeP75, categoryName } = bakeStats.value
+  if (recipe.value.bakeTime < timeP25 - 5) {
+    return `时长偏短，${categoryName}类常见时长区间为 ${timeP25}~${timeP75}分钟`
+  } else {
+    return `时长偏长，${categoryName}类常见时长区间为 ${timeP25}~${timeP75}分钟`
+  }
+})
+
+const hasDeviation = computed(() => isTempDeviated.value || isTimeDeviated.value)
 
 const {
   scaleFactor,
@@ -871,10 +954,24 @@ const loadRecipe = async () => {
     }
     loadProgress()
     loadIngredientsProgress()
+    loadBakeStats()
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
+  }
+}
+
+const loadBakeStats = async () => {
+  if (!recipe.value?.id) return
+  bakeStatsLoading.value = true
+  try {
+    bakeStats.value = await getRecipeBakeStats(recipe.value.id)
+  } catch (e) {
+    console.error('加载烘焙参数统计失败', e)
+    bakeStats.value = null
+  } finally {
+    bakeStatsLoading.value = false
   }
 }
 
@@ -1687,6 +1784,86 @@ const submitTrialReceipt = async () => {
   word-break: break-word;
 }
 
+.bake-stats-reference {
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #fdfbf7 0%, #f8f4eb 100%);
+  border-radius: 12px;
+  border: 1px solid #e8e0d0;
+}
+
+.stats-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  font-weight: 600;
+  color: #5a4a3a;
+}
+
+.stats-title {
+  font-size: 16px;
+}
+
+.stats-sample {
+  margin-left: 8px;
+  font-size: 13px;
+  color: #999;
+  font-weight: normal;
+}
+
+.deviation-warnings {
+  margin-bottom: 16px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.stats-item {
+  background: #fff;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid #f0ebe3;
+  text-align: center;
+}
+
+.stats-item-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.stats-item-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.stats-item-value .value-normal {
+  color: #67c23a;
+}
+
+.stats-item-value .value-deviated {
+  color: #e6a23c;
+  animation: deviate-pulse 2s ease-in-out infinite;
+}
+
+@keyframes deviate-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.stats-item-range {
+  font-size: 12px;
+  color: #999;
+}
+
 @media (max-width: 768px) {
   .cooking-bar-inner {
     gap: 16px;
@@ -1728,6 +1905,19 @@ const submitTrialReceipt = async () => {
 
   .trial-receipt-item {
     padding: 16px;
+  }
+
+  .bake-stats-reference {
+    padding: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stats-header {
+    flex-wrap: wrap;
   }
 }
 

@@ -91,4 +91,12 @@ public interface RecipeMapper extends BaseMapper<Recipe> {
             "</foreach>" +
             "</script>")
     java.util.List<Recipe> selectRecipesByIds(@Param("ids") java.util.List<Long> ids);
+
+    @Select("SELECT r.bake_temp, r.bake_time " +
+            "FROM recipe r " +
+            "WHERE r.status = 1 " +
+            "AND r.bake_temp IS NOT NULL " +
+            "AND r.bake_time IS NOT NULL " +
+            "AND (#{categoryId} IS NULL OR r.category_id = #{categoryId})")
+    java.util.List<java.util.Map<String, Object>> selectBakeParamsForStats(@Param("categoryId") Long categoryId);
 }
