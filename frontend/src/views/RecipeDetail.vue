@@ -48,6 +48,14 @@
                 {{ cookingMode ? '退出烹饪模式' : '烹饪模式' }}
               </el-button>
               <el-button
+                type="primary"
+                @click="enterExecutionMode"
+                :disabled="!steps.length"
+              >
+                <el-icon style="margin-right: 4px;"><VideoPlay /></el-icon>
+                执行模式
+              </el-button>
+              <el-button
                 :type="isFavorited ? 'danger' : 'default'"
                 @click="toggleFavorite"
                 :icon="isFavorited ? StarFilled : Star"
@@ -101,6 +109,12 @@
           <div class="section-header">
             <h2 class="section-title">食材清单</h2>
             <div class="progress-actions">
+              <IngredientScaler
+                :scale-factor="scaleFactor"
+                @increase="increaseScale"
+                @decrease="decreaseScale"
+                @reset="resetScale"
+              />
               <span class="progress-text">已备齐 {{ checkedIngredientCount }}/{{ ingredients.length }} 项</span>
               <el-button size="small" text type="danger" @click="handleResetIngredients" v-if="checkedIngredientCount > 0">
                 重置进度
@@ -109,7 +123,7 @@
           </div>
           <div class="ingredients-list">
             <div
-              v-for="(item, idx) in ingredients"
+              v-for="(item, idx) in scaledIngredients"
               :key="idx"
               class="ingredient-item"
               :class="{ 'ingredient-checked': isIngredientChecked(idx) }"
@@ -119,7 +133,13 @@
                 <el-checkbox :model-value="isIngredientChecked(idx)" @click.stop="toggleIngredient(idx)" />
               </div>
               <span class="ingredient-name">{{ item.name }}</span>
-              <span class="ingredient-amount">{{ item.amount }}</span>
+              <div class="ingredient-amount-wrapper">
+                <span
+                  v-if="item.originalAmount && item.originalAmount !== item.amount"
+                  class="ingredient-amount-original"
+                >{{ item.originalAmount }}</span>
+                <span class="ingredient-amount">{{ item.amount }}</span>
+              </div>
             </div>
           </div>
           <div class="ingredients-summary" v-if="checkedIngredientCount === ingredients.length && ingredients.length > 0">
@@ -378,17 +398,39 @@
     </el-dialog>
 
     <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" />
+
+    <ExecutionModeOverlay
+      :active="executionActive"
+      :recipe-title="recipe?.title || ''"
+      :step-index="executionStepIndex"
+      :total-steps="totalSteps"
+      :current-step="currentExecStep"
+      :remaining-steps="remainingSteps"
+      :progress-percent="progressPercent"
+      :is-last-step="isLastStep"
+      :is-all-done="isAllDone"
+      :bake-temp="recipe?.bakeTemp"
+      :bake-time="recipe?.bakeTime"
+      @next="goNext"
+      @prev="goPrev"
+      @exit="exitExecutionMode"
+      @go-to="goToStep"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled } from '@element-plus/icons-vue'
+import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled, VideoPlay } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useIngredientScaler } from '@/composables/useIngredientScaler'
+import { useExecutionMode } from '@/composables/useExecutionMode'
 import RecipeTimer from '@/components/RecipeTimer.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
+import IngredientScaler from '@/components/IngredientScaler.vue'
+import ExecutionModeOverlay from '@/components/ExecutionModeOverlay.vue'
 import {
   getRecipeDetail,
   checkFavorite,
@@ -457,6 +499,39 @@ const steps = computed(() => {
     return JSON.parse(recipe.value.steps)
   } catch {
     return []
+  }
+})
+
+const {
+  scaleFactor,
+  scaledIngredients,
+  increaseScale,
+  decreaseScale,
+  resetScale
+} = useIngredientScaler(() => ingredients.value)
+
+const {
+  executionActive,
+  executionStepIndex,
+  currentStep: currentExecStep,
+  totalSteps,
+  remainingSteps,
+  progressPercent,
+  isLastStep,
+  isAllDone,
+  enterExecutionMode,
+  exitExecutionMode,
+  goNext,
+  goPrev,
+  goToStep
+} = useExecutionMode(() => steps.value, completedSteps)
+
+watch(executionActive, (val) => {
+  if (val) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+    saveProgress()
   }
 })
 
@@ -1132,6 +1207,21 @@ const submitTrialReceipt = async () => {
   flex-shrink: 0;
   margin-left: 16px;
   transition: color 0.25s ease;
+}
+
+.ingredient-amount-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.ingredient-amount-original {
+  color: #c0c4cc;
+  text-decoration: line-through;
+  font-size: 13px;
+  font-weight: 400;
 }
 
 .ingredients-summary {
