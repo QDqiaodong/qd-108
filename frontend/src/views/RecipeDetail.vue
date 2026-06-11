@@ -98,12 +98,33 @@
 
       <div class="detail-content">
         <div class="content-section" v-if="ingredients.length">
-          <h2 class="section-title">食材清单</h2>
+          <div class="section-header">
+            <h2 class="section-title">食材清单</h2>
+            <div class="progress-actions">
+              <span class="progress-text">已备齐 {{ checkedIngredientCount }}/{{ ingredients.length }} 项</span>
+              <el-button size="small" text type="danger" @click="handleResetIngredients" v-if="checkedIngredientCount > 0">
+                重置进度
+              </el-button>
+            </div>
+          </div>
           <div class="ingredients-list">
-            <div v-for="(item, idx) in ingredients" :key="idx" class="ingredient-item">
+            <div
+              v-for="(item, idx) in ingredients"
+              :key="idx"
+              class="ingredient-item"
+              :class="{ 'ingredient-checked': isIngredientChecked(idx) }"
+              @click="toggleIngredient(idx)"
+            >
+              <div class="ingredient-checkbox">
+                <el-checkbox :model-value="isIngredientChecked(idx)" @click.stop="toggleIngredient(idx)" />
+              </div>
               <span class="ingredient-name">{{ item.name }}</span>
               <span class="ingredient-amount">{{ item.amount }}</span>
             </div>
+          </div>
+          <div class="ingredients-summary" v-if="checkedIngredientCount === ingredients.length && ingredients.length > 0">
+            <el-icon style="color: #67c23a; margin-right: 6px;"><CircleCheckFilled /></el-icon>
+            <span>太棒了！所有食材已准备完毕，可以开始制作啦~</span>
           </div>
         </div>
 
@@ -364,7 +385,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled, Sunny, DocumentAdd } from '@element-plus/icons-vue'
+import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import RecipeTimer from '@/components/RecipeTimer.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
@@ -413,6 +434,9 @@ const completedSteps = ref(new Set())
 const stepRefs = ref([])
 const isProgressLoaded = ref(false)
 
+const checkedIngredients = ref(new Set())
+const isIngredientsLoaded = ref(false)
+
 const cookingMode = ref(false)
 let wakeLock = null
 const timerRemaining = ref(-1)
@@ -437,6 +461,8 @@ const steps = computed(() => {
 })
 
 const completedStepCount = computed(() => completedSteps.value.size)
+
+const checkedIngredientCount = computed(() => checkedIngredients.value.size)
 
 const firstUncompletedIndex = computed(() => {
   const total = steps.value.length
@@ -474,6 +500,66 @@ const toggleStep = (idx) => {
 
 const getLocalStorageKey = () => {
   return `recipe_progress_${route.params.id}`
+}
+
+const getIngredientStorageKey = () => {
+  return `recipe_ingredients_${route.params.id}`
+}
+
+const isIngredientChecked = (idx) => {
+  return checkedIngredients.value.has(idx)
+}
+
+const toggleIngredient = (idx) => {
+  if (checkedIngredients.value.has(idx)) {
+    checkedIngredients.value.delete(idx)
+  } else {
+    checkedIngredients.value.add(idx)
+  }
+  checkedIngredients.value = new Set(checkedIngredients.value)
+  saveIngredientsProgress()
+}
+
+const saveIngredientsProgress = () => {
+  if (!recipe.value) return
+  const ingredientArray = Array.from(checkedIngredients.value).sort((a, b) => a - b)
+  try {
+    localStorage.setItem(getIngredientStorageKey(), JSON.stringify(ingredientArray))
+  } catch (e) {
+    console.error('本地保存食材进度失败', e)
+  }
+}
+
+const loadIngredientsProgress = () => {
+  if (!recipe.value) return
+  try {
+    const localData = localStorage.getItem(getIngredientStorageKey())
+    if (localData) {
+      const ingredientArray = JSON.parse(localData)
+      checkedIngredients.value = new Set(ingredientArray)
+    }
+    isIngredientsLoaded.value = true
+  } catch (e) {
+    console.error('加载食材进度失败', e)
+    isIngredientsLoaded.value = true
+  }
+}
+
+const handleResetIngredients = async () => {
+  try {
+    await ElMessageBox.confirm('确定要重置食材准备进度吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    localStorage.removeItem(getIngredientStorageKey())
+    checkedIngredients.value = new Set()
+    ElMessage.success('食材进度已重置')
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
 }
 
 const saveProgress = () => {
@@ -675,6 +761,7 @@ const loadRecipe = async () => {
       isFavorited.value = await checkFavorite(userStore.userInfo.id, route.params.id)
     }
     loadProgress()
+    loadIngredientsProgress()
   } catch (e) {
     console.error(e)
   } finally {
@@ -992,22 +1079,83 @@ const submitTrialReceipt = async () => {
 
 .ingredient-item {
   display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px dashed #eee;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 2px solid transparent;
 }
 
 .ingredient-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.ingredient-item:hover {
+  background: #fff9f3;
+  border-color: #ffe0cc;
+}
+
+.ingredient-item.ingredient-checked {
+  background: #f0f9eb;
+  border-color: #e1f3d8;
+}
+
+.ingredient-item.ingredient-checked .ingredient-name {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.ingredient-item.ingredient-checked .ingredient-amount {
+  color: #67c23a;
+}
+
+.ingredient-checkbox {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .ingredient-name {
   color: #333;
+  flex: 1;
+  font-size: 15px;
+  transition: color 0.25s ease;
 }
 
 .ingredient-amount {
   color: #ff6b6b;
   font-weight: 500;
+  flex-shrink: 0;
+  margin-left: 16px;
+  transition: color 0.25s ease;
+}
+
+.ingredients-summary {
+  margin-top: 16px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #f0f9eb 0%, #e8f7de 100%);
+  border-radius: 8px;
+  color: #67c23a;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: summary-appear 0.4s ease;
+}
+
+@keyframes summary-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .steps-list {
