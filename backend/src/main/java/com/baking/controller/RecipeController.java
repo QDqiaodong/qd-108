@@ -98,6 +98,12 @@ public class RecipeController {
         return Result.success(recipeService.getFavoriteRecipes(userId, pageNum, pageSize));
     }
 
+    @PostMapping("/batch")
+    public Result<List<Recipe>> getRecipesByIds(@RequestBody Map<String, List<Long>> request) {
+        List<Long> ids = request.get("ids");
+        return Result.success(recipeService.getRecipesByIds(ids));
+    }
+
     @Data
     public static class RecipeRequest {
         private String title;

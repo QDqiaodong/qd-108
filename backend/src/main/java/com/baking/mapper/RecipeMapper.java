@@ -80,4 +80,15 @@ public interface RecipeMapper extends BaseMapper<Recipe> {
             "WHERE f.user_id = #{userId} AND r.status = 1 " +
             "ORDER BY f.created_at DESC")
     IPage<Recipe> selectFavoriteRecipes(Page<Recipe> page, @Param("userId") Long userId);
+
+    @Select("<script>" +
+            "SELECT r.*, c.name as categoryName, u.nickname as authorName, u.avatar as authorAvatar " +
+            "FROM recipe r LEFT JOIN category c ON r.category_id = c.id " +
+            "LEFT JOIN user u ON r.user_id = u.id " +
+            "WHERE r.status = 1 AND r.id IN " +
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>" +
+            "#{id}" +
+            "</foreach>" +
+            "</script>")
+    java.util.List<Recipe> selectRecipesByIds(@Param("ids") java.util.List<Long> ids);
 }

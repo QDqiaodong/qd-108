@@ -267,3 +267,18 @@ export const addTrialReceipt = (data) => {
     data
   })
 }
+
+export const getRecipesByIds = (ids) => {
+  return request({
+    url: '/recipes/batch',
+    method: 'post',
+    data: { ids }
+  })
+}
+
+export const getIngredientAliasMap = () => {
+  return request({
+    url: '/ingredient-aliases/map',
+    method: 'get'
+  })
+}

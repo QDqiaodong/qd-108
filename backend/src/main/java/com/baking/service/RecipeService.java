@@ -280,4 +280,11 @@ public class RecipeService {
     public void refreshHotIngredientsCache() {
         redisTemplate.delete(HOT_INGREDIENTS_KEY);
     }
+
+    public List<Recipe> getRecipesByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return recipeMapper.selectRecipesByIds(ids);
+    }
 }

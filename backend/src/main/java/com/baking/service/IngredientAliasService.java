@@ -172,4 +172,8 @@ public class IngredientAliasService {
             return ingredientsJson;
         }
     }
+
+    public Map<String, String> getAllAliasMap() {
+        return new HashMap<>(localCache);
+    }
 }

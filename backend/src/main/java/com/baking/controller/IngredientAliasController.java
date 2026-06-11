@@ -83,6 +83,11 @@ public class IngredientAliasController {
         return Result.success();
     }
 
+    @GetMapping("/map")
+    public Result<java.util.Map<String, String>> getAliasMap() {
+        return Result.success(ingredientAliasService.getAllAliasMap());
+    }
+
     @Data
     public static class AliasRequest {
         private String canonicalName;

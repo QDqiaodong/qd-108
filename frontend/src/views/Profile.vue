@@ -71,21 +71,88 @@
         </div>
 
         <div class="tab-content">
-          <div v-loading="loading" class="recipe-grid">
-            <RecipeCard v-for="recipe in recipeList" :key="recipe.id" :recipe="recipe" />
+          <div
+            v-if="activeTab === 'favorites' && recipeList.length > 0"
+            class="favorites-toolbar"
+          >
+            <div class="toolbar-left">
+              <el-button
+                v-if="!selectMode"
+                type="primary"
+                plain
+                size="small"
+                @click="enterSelectMode"
+              >
+                <el-icon style="margin-right: 4px;"><List /></el-icon>
+                批量选择
+              </el-button>
+              <template v-else>
+                <el-button size="small" @click="exitSelectMode">
+                  取消
+                </el-button>
+                <el-checkbox
+                  :model-value="isAllSelected"
+                  :indeterminate="isIndeterminate"
+                  @change="toggleSelectAll"
+                >
+                  全选
+                </el-checkbox>
+                <span class="selected-count">
+                  已选 <b>{{ selectedRecipeIds.length }}</b> / {{ total }} 项
+                </span>
+              </template>
+            </div>
+            <div class="toolbar-right">
+              <el-button
+                v-if="selectMode"
+                type="primary"
+                :disabled="selectedRecipeIds.length === 0"
+                @click="generatePrepareList"
+              >
+                <el-icon style="margin-right: 4px;"><ShoppingCart /></el-icon>
+                生成备料清单
+              </el-button>
+            </div>
+          </div>
+
+          <div v-loading="loading" class="recipe-grid" :class="{ 'select-mode-grid': selectMode }">
+            <div
+              v-for="recipe in recipeList"
+              :key="recipe.id"
+              class="recipe-card-wrapper"
+              :class="{ 'card-selected': isSelected(recipe.id) }"
+            >
+              <div
+                v-if="selectMode && activeTab === 'favorites'"
+                class="card-checkbox"
+                @click.stop="toggleSelect(recipe.id)"
+              >
+                <el-checkbox :model-value="isSelected(recipe.id)" @click.stop />
+              </div>
+              <RecipeCard :recipe="recipe" />
+            </div>
           </div>
 
           <div class="empty" v-if="!loading && recipeList.length === 0">
             <el-empty :description="activeTab === 'recipes' ? '还没有发布配方' : '还没有收藏配方'" />
           </div>
 
-          <div class="pagination" v-if="total > 0">
+          <div class="pagination" v-if="total > 0 && !selectMode">
             <el-pagination
               v-model:current-page="pageNum"
               v-model:page-size="pageSize"
               :total="total"
               layout="prev, pager, next, total"
               @current-change="loadData"
+            />
+          </div>
+
+          <div v-if="selectMode && activeTab === 'favorites' && total > pageSize" class="select-mode-hint">
+            <el-alert
+              title="提示：批量选择模式下暂不支持翻页，请在当前页选择"
+              type="info"
+              :closable="false"
+              show-icon
             />
           </div>
         </div>
@@ -98,7 +165,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getUserRecipes, getFavoriteRecipes, getUserAchievements, checkIn, getCheckInStatus } from '@/api'
 import RecipeCard from '@/components/RecipeCard.vue'
@@ -106,8 +174,10 @@ import LoginDialog from '@/components/LoginDialog.vue'
 import BadgeWall from '@/components/BadgeWall.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
 import CalendarView from '@/components/CalendarView.vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { List, ShoppingCart } from '@element-plus/icons-vue'
 
+const router = useRouter()
 const userStore = useUserStore()
 const showLogin = ref(false)
 const activeTab = ref('recipes')
@@ -123,16 +193,103 @@ const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
 const calendarRef = ref(null)
 
-onMounted(() => {
-  if (userStore.isLogin) {
-    loadData()
-    loadAchievements()
-    loadCheckInStatus()
-  }
+const selectMode = ref(false)
+const selectedRecipeIds = ref([])
+const allFavorites = ref([])
+
+const isAllSelected = computed(() => {
+  if (activeTab.value !== 'favorites') return false
+  const pageIds = recipeList.value.map(r => r.id)
+  return pageIds.length > 0 && pageIds.every(id => selectedRecipeIds.value.includes(id))
 })
+
+const isIndeterminate = computed(() => {
+  if (activeTab.value !== 'favorites') return false
+  const pageIds = recipeList.value.map(r => r.id)
+  const selectedInPage = pageIds.filter(id => selectedRecipeIds.value.includes(id)).length
+  return selectedInPage > 0 && selectedInPage < pageIds.length
+})
+
+const isSelected = (id) => selectedRecipeIds.value.includes(id)
+
+const enterSelectMode = async () => {
+  try {
+    const res = await getFavoriteRecipes(userStore.userInfo.id, {
+      pageNum: 1,
+      pageSize: 1000
+    })
+    allFavorites.value = res.records || []
+    recipeList.value = allFavorites.value
+    total.value = res.total || 0
+    pageSize.value = allFavorites.value.length || 12
+    selectMode.value = true
+    selectedRecipeIds.value = []
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('加载收藏列表失败')
+  }
+}
+
+const exitSelectMode = () => {
+  selectMode.value = false
+  selectedRecipeIds.value = []
+  pageNum.value = 1
+  pageSize.value = 12
+  loadData()
+}
+
+const toggleSelect = (id) => {
+  const idx = selectedRecipeIds.value.indexOf(id)
+  if (idx > -1) {
+    selectedRecipeIds.value.splice(idx, 1)
+  } else {
+    selectedRecipeIds.value.push(id)
+  }
+}
+
+const toggleSelectAll = (val) => {
+  const pageIds = recipeList.value.map(r => r.id)
+  if (val) {
+    for (const id of pageIds) {
+      if (!selectedRecipeIds.value.includes(id)) {
+        selectedRecipeIds.value.push(id)
+      }
+    }
+  } else {
+    selectedRecipeIds.value = selectedRecipeIds.value.filter(id => !pageIds.includes(id))
+  }
+}
+
+const generatePrepareList = async () => {
+  if (selectedRecipeIds.value.length === 0) {
+    ElMessage.warning('请先选择配方')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `已选择 ${selectedRecipeIds.value.length} 个配方，是否生成备料清单？`,
+      '生成备料清单',
+      {
+        confirmButtonText: '确定生成',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    router.push({
+      path: '/prepare-list',
+      query: { ids: selectedRecipeIds.value.join(',') }
+    })
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
+}
 
 watch(activeTab, () => {
   pageNum.value = 1
+  selectMode.value = false
+  selectedRecipeIds.value = []
   loadData()
 })
 
@@ -353,5 +510,103 @@ const handleLoginSuccess = () => {
   margin-top: 40px;
   display: flex;
   justify-content: center;
+}
+
+.favorites-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selected-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.selected-count b {
+  color: #ff6b6b;
+  font-size: 16px;
+  margin: 0 2px;
+}
+
+.recipe-card-wrapper {
+  position: relative;
+  transition: all 0.25s ease;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.recipe-card-wrapper.card-selected {
+  box-shadow: 0 0 0 3px #ff6b6b, 0 4px 16px rgba(255, 107, 107, 0.25);
+  transform: translateY(-2px);
+}
+
+.card-checkbox {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s ease;
+}
+
+.card-checkbox:hover {
+  background: #fff;
+  transform: scale(1.1);
+}
+
+.card-selected .card-checkbox {
+  background: #ff6b6b;
+}
+
+.card-selected .card-checkbox :deep(.el-checkbox__inner) {
+  background-color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
+.select-mode-grid .recipe-card-wrapper {
+  cursor: pointer;
+}
+
+.select-mode-hint {
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .favorites-toolbar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>
