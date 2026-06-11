@@ -2,6 +2,7 @@ package com.baking.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baking.common.Result;
+import com.baking.dto.CommentSummaryDTO;
 import com.baking.entity.Comment;
 import com.baking.entity.UserAchievement;
 import com.baking.service.AchievementService;
@@ -28,6 +29,11 @@ public class CommentController {
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize) {
         return Result.success(commentService.getComments(recipeId, pageNum, pageSize));
+    }
+
+    @GetMapping("/summary")
+    public Result<CommentSummaryDTO> getCommentSummary(@RequestParam Long recipeId) {
+        return Result.success(commentService.getCommentSummary(recipeId));
     }
 
     @PostMapping

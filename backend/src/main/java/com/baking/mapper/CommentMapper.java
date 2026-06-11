@@ -22,4 +22,7 @@ public interface CommentMapper extends BaseMapper<Comment> {
             "WHERE c.parent_id = #{parentId} " +
             "ORDER BY c.created_at ASC")
     java.util.List<Comment> selectReplies(@Param("parentId") Long parentId);
+
+    @Select("SELECT content FROM comment WHERE recipe_id = #{recipeId} AND content IS NOT NULL AND content != ''")
+    java.util.List<String> selectAllCommentContents(@Param("recipeId") Long recipeId);
 }
