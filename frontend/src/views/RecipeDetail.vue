@@ -1,5 +1,10 @@
 <template>
   <div class="recipe-detail" :class="{ 'cooking-mode': cookingMode }" v-loading="loading">
+    <div class="error-placeholder" v-if="!recipe && !loading" :style="{ padding: '80px 24px', textAlign: 'center' }">
+      <el-empty :description="recipeError || '配方不存在或加载失败'">
+        <el-button type="primary" @click="loadRecipe">重新加载</el-button>
+      </el-empty>
+    </div>
     <div class="container" v-if="recipe">
       <div class="detail-header">
         <div class="recipe-gallery">
@@ -102,7 +107,13 @@
             </el-tag>
           </div>
 
-          <div class="bake-stats-reference" v-if="bakeStats && !bakeStatsLoading" v-loading="bakeStatsLoading">
+          <div class="bake-stats-reference" v-if="bakeStats || bakeStatsLoading || bakeStatsError" v-loading="bakeStatsLoading">
+            <div v-if="bakeStatsError && !bakeStatsLoading" class="section-error">
+              <el-empty :description="'同品类参考加载失败：' + bakeStatsError" :image-size="60">
+                <el-button size="small" type="primary" @click="loadBakeStats">重试</el-button>
+              </el-empty>
+            </div>
+            <template v-else-if="bakeStats">
             <div class="stats-header">
               <el-icon style="margin-right: 6px;"><DataAnalysis /></el-icon>
               <span class="stats-title">同品类参数参考</span>
@@ -144,6 +155,7 @@
                 <div class="stats-item-range">平均时长 {{ Math.round(bakeStats.timeAvg) }}分钟</div>
               </div>
             </div>
+            </template>
           </div>
         </div>
       </div>
@@ -246,6 +258,12 @@
           </div>
 
           <div class="comments-list" v-loading="commentsLoading">
+            <div v-if="commentsError && !commentsLoading" class="section-error" style="padding: 30px 0;">
+              <el-empty :description="'评论加载失败：' + commentsError" :image-size="60">
+                <el-button size="small" type="primary" @click="loadComments">重试</el-button>
+              </el-empty>
+            </div>
+            <template v-else>
             <div v-for="comment in comments" :key="comment.id" class="comment-item">
               <div class="comment-header">
                 <el-avatar :size="36" :src="comment.userAvatar">
@@ -276,6 +294,7 @@
                 </div>
               </div>
             </div>
+            </template>
           </div>
         </div>
 
@@ -293,10 +312,16 @@
           </h2>
 
           <div class="trial-receipts-list" v-loading="trialReceiptsLoading">
-            <div v-if="!trialReceipts.length && !trialReceiptsLoading" class="empty-trial-receipts">
-              <p>还没有试做回执，快来分享你的试做体验吧！</p>
+            <div v-if="trialReceiptsError && !trialReceiptsLoading" class="section-error" style="padding: 30px 0;">
+              <el-empty :description="'试做回执加载失败：' + trialReceiptsError" :image-size="60">
+                <el-button size="small" type="primary" @click="loadTrialReceipts">重试</el-button>
+              </el-empty>
             </div>
-            <div v-for="receipt in trialReceipts" :key="receipt.id" class="trial-receipt-item">
+            <template v-else>
+              <div v-if="!trialReceipts.length" class="empty-trial-receipts">
+                <p>还没有试做回执，快来分享你的试做体验吧！</p>
+              </div>
+              <div v-for="receipt in trialReceipts" :key="receipt.id" class="trial-receipt-item">
               <div class="trial-receipt-header">
                 <el-avatar :size="36" :src="receipt.userAvatar">
                   {{ receipt.userName?.charAt(0) }}
@@ -347,7 +372,8 @@
                   <img :src="img" @click="previewImage(img)" />
                 </div>
               </div>
-            </div>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -522,24 +548,45 @@ import {
   getRecipeBakeStats
 } from '@/api'
 
+const REQUEST_TIMEOUT = 8000
+
+const withTimeout = (promise, ms = REQUEST_TIMEOUT) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('请求超时')), ms)
+    Promise.resolve(promise)
+      .then((res) => {
+        clearTimeout(timer)
+        resolve(res)
+      })
+      .catch((err) => {
+        clearTimeout(timer)
+        reject(err)
+      })
+  })
+}
+
 const route = useRoute()
 const userStore = useUserStore()
 const recipe = ref(null)
 const loading = ref(false)
+const recipeError = ref(null)
 const currentImage = ref(0)
 const isFavorited = ref(false)
 const commentContent = ref('')
 const comments = ref([])
 const commentsLoading = ref(false)
+const commentsError = ref(null)
 const showLogin = ref(false)
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
 const bakeStats = ref(null)
 const bakeStatsLoading = ref(false)
+const bakeStatsError = ref(null)
 
 const showTrialReceiptDialog = ref(false)
 const trialReceipts = ref([])
 const trialReceiptsLoading = ref(false)
+const trialReceiptsError = ref(null)
 const resultUploadUrl = '/api/upload/image'
 const uploadHeaders = {}
 const trialReceiptForm = ref({
@@ -929,8 +976,6 @@ const handleVisibilityChange = async () => {
 
 onMounted(() => {
   loadRecipe()
-  loadComments()
-  loadTrialReceipts()
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
@@ -947,17 +992,26 @@ onUnmounted(() => {
 
 const loadRecipe = async () => {
   loading.value = true
+  recipeError.value = null
   try {
-    recipe.value = await getRecipeDetail(route.params.id)
+    recipe.value = await withTimeout(getRecipeDetail(route.params.id), 10000)
+    loading.value = false
+
     if (userStore.isLogin) {
-      isFavorited.value = await checkFavorite(userStore.userInfo.id, route.params.id)
+      withTimeout(checkFavorite(userStore.userInfo.id, route.params.id), 5000)
+        .then((res) => { isFavorited.value = res })
+        .catch((e) => { console.error('获取收藏状态失败', e) })
     }
+
     loadProgress()
     loadIngredientsProgress()
     loadBakeStats()
+    loadComments()
+    loadTrialReceipts()
   } catch (e) {
     console.error(e)
-  } finally {
+    recipe.value = null
+    recipeError.value = e.message || '加载失败，请稍后重试'
     loading.value = false
   }
 }
@@ -965,11 +1019,13 @@ const loadRecipe = async () => {
 const loadBakeStats = async () => {
   if (!recipe.value?.id) return
   bakeStatsLoading.value = true
+  bakeStatsError.value = null
   try {
-    bakeStats.value = await getRecipeBakeStats(recipe.value.id)
+    bakeStats.value = await withTimeout(getRecipeBakeStats(recipe.value.id))
   } catch (e) {
     console.error('加载烘焙参数统计失败', e)
     bakeStats.value = null
+    bakeStatsError.value = e.message || '加载失败'
   } finally {
     bakeStatsLoading.value = false
   }
@@ -1004,11 +1060,14 @@ const toggleFavorite = async () => {
 
 const loadComments = async () => {
   commentsLoading.value = true
+  commentsError.value = null
   try {
-    const res = await getComments({ recipeId: route.params.id, pageNum: 1, pageSize: 20 })
+    const res = await withTimeout(getComments({ recipeId: route.params.id, pageNum: 1, pageSize: 20 }))
     comments.value = res.records || []
   } catch (e) {
     console.error(e)
+    comments.value = []
+    commentsError.value = e.message || '加载失败'
   } finally {
     commentsLoading.value = false
   }
@@ -1047,11 +1106,14 @@ const likeComment = async (id) => {
 
 const loadTrialReceipts = async () => {
   trialReceiptsLoading.value = true
+  trialReceiptsError.value = null
   try {
-    const res = await getTrialReceipts({ recipeId: route.params.id, pageNum: 1, pageSize: 20 })
+    const res = await withTimeout(getTrialReceipts({ recipeId: route.params.id, pageNum: 1, pageSize: 20 }))
     trialReceipts.value = res.records || []
   } catch (e) {
     console.error(e)
+    trialReceipts.value = []
+    trialReceiptsError.value = e.message || '加载失败'
   } finally {
     trialReceiptsLoading.value = false
   }
