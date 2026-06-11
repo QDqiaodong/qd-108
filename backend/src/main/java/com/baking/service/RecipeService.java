@@ -138,6 +138,11 @@ public class RecipeService {
 
     @Transactional
     public Recipe createRecipe(Recipe recipe, List<String> imageUrls) {
+        return createRecipe(recipe, imageUrls, null, null);
+    }
+
+    @Transactional
+    public Recipe createRecipe(Recipe recipe, List<String> imageUrls, List<String> thumbnailUrls, List<String> imageTypes) {
         recipe.setViewCount(0);
         recipe.setLikeCount(0);
         recipe.setCommentCount(0);
@@ -156,6 +161,14 @@ public class RecipeService {
                 image.setRecipeId(recipe.getId());
                 image.setImageUrl(imageUrls.get(i));
                 image.setSortOrder(i);
+                if (thumbnailUrls != null && i < thumbnailUrls.size()) {
+                    image.setThumbnailUrl(thumbnailUrls.get(i));
+                }
+                if (imageTypes != null && i < imageTypes.size()) {
+                    image.setImageType(imageTypes.get(i));
+                } else {
+                    image.setImageType(i == 0 ? "cover" : "step");
+                }
                 recipeImageMapper.insert(image);
             }
         }

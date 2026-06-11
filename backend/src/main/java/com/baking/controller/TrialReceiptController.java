@@ -34,6 +34,7 @@ public class TrialReceiptController {
         trialReceipt.setTempAdjustment(request.getTempAdjustment());
         trialReceipt.setMoldDifference(request.getMoldDifference());
         trialReceipt.setNotes(request.getNotes());
+        trialReceipt.setResultImageList(request.getResultImages());
         return Result.success(trialReceiptService.addTrialReceipt(trialReceipt));
     }
 
@@ -47,5 +48,6 @@ public class TrialReceiptController {
         private String tempAdjustment;
         private String moldDifference;
         private String notes;
+        private java.util.List<String> resultImages;
     }
 }

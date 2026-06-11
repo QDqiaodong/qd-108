@@ -1,6 +1,7 @@
 package com.baking.controller;
 
 import com.baking.common.Result;
+import com.baking.enums.ImageType;
 import com.baking.util.ImageUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -21,12 +21,13 @@ public class UploadController {
     private final ImageUtil imageUtil;
 
     @PostMapping("/image")
-    public Result<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
+    public Result<Map<String, String>> uploadImage(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "imageType", required = false) String imageType) {
         try {
-            String url = imageUtil.uploadImage(file);
-            Map<String, String> result = new HashMap<>();
-            result.put("url", url);
-            return Result.success(result);
+            ImageType type = ImageType.fromCode(imageType);
+            ImageUtil.UploadResult result = imageUtil.uploadImage(file, type);
+            return Result.success(result.toMap());
         } catch (IOException e) {
             return Result.error("图片上传失败: " + e.getMessage());
         }
@@ -39,7 +40,7 @@ public class UploadController {
             @RequestParam(defaultValue = "400") int height) {
         try {
             String url = imageUtil.uploadThumbnail(file, width, height);
-            Map<String, String> result = new HashMap<>();
+            Map<String, String> result = new java.util.HashMap<>();
             result.put("url", url);
             return Result.success(result);
         } catch (IOException e) {

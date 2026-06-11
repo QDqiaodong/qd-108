@@ -63,7 +63,10 @@ public class RecipeController {
         recipe.setServings(request.getServings());
         recipe.setCategoryId(request.getCategoryId());
         recipe.setUserId(request.getUserId());
-        Recipe createdRecipe = recipeService.createRecipe(recipe, request.getImages());
+        Recipe createdRecipe = recipeService.createRecipe(
+                recipe, request.getImages(),
+                request.getThumbnails(),
+                request.getImageTypes());
 
         List<UserAchievement> newlyUnlocked = achievementService.checkPublishAchievements(request.getUserId());
         List<UserAchievement> categoryUnlocked = achievementService.checkCategoryAchievements(
@@ -118,5 +121,7 @@ public class RecipeController {
         private Long categoryId;
         private Long userId;
         private List<String> images;
+        private List<String> thumbnails;
+        private List<String> imageTypes;
     }
 }

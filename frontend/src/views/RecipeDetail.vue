@@ -293,6 +293,16 @@
                   <span class="field-value">{{ receipt.notes }}</span>
                 </div>
               </div>
+
+              <div class="trial-receipt-images" v-if="receipt.resultImageList && receipt.resultImageList.length">
+                <div
+                  v-for="(img, imgIdx) in receipt.resultImageList"
+                  :key="imgIdx"
+                  class="trial-receipt-image-item"
+                >
+                  <img :src="img" @click="previewImage(img)" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -387,6 +397,26 @@
             show-word-limit
           />
         </el-form-item>
+
+        <el-form-item label="成品展示">
+          <div>
+            <el-upload
+              :action="resultUploadUrl"
+              :headers="uploadHeaders"
+              list-type="picture-card"
+              :limit="6"
+              :on-success="handleResultImageSuccess"
+              :before-upload="beforeResultImageUpload"
+              :on-remove="handleResultImageRemove"
+              accept="image/*"
+              :data="{ imageType: 'result' }"
+              :file-list="trialReceiptForm.resultImages.map((url, idx) => ({ url, name: `image-${idx}`, uid: idx }))"
+            >
+              <el-icon><Plus /></el-icon>
+            </el-upload>
+            <div class="upload-tip">建议上传清晰的成品图，最多6张，突出烘焙细节</div>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -423,7 +453,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled, VideoPlay } from '@element-plus/icons-vue'
+import { Star, StarFilled, Sunny, DocumentAdd, CircleCheckFilled, VideoPlay, Plus } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useIngredientScaler } from '@/composables/useIngredientScaler'
 import { useExecutionMode } from '@/composables/useExecutionMode'
@@ -443,7 +473,8 @@ import {
   saveRecipeProgress,
   resetRecipeProgress,
   getTrialReceipts,
-  addTrialReceipt
+  addTrialReceipt,
+  uploadImage
 } from '@/api'
 
 const route = useRoute()
@@ -462,13 +493,16 @@ const newlyUnlocked = ref([])
 const showTrialReceiptDialog = ref(false)
 const trialReceipts = ref([])
 const trialReceiptsLoading = ref(false)
+const resultUploadUrl = '/api/upload/image'
+const uploadHeaders = {}
 const trialReceiptForm = ref({
   success: 1,
   tasteRating: 0,
   tasteComment: '',
   tempAdjustment: '',
   moldDifference: '',
-  notes: ''
+  notes: '',
+  resultImages: []
 })
 const submittingTrialReceipt = ref(false)
 
@@ -926,6 +960,38 @@ const loadTrialReceipts = async () => {
   }
 }
 
+const beforeResultImageUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  if (!isLt10M) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return true
+}
+
+const handleResultImageSuccess = (response, uploadFile) => {
+  if (response.data && response.data.url) {
+    trialReceiptForm.value.resultImages.push(response.data.url)
+  }
+  ElMessage.success('成品图上传成功')
+}
+
+const handleResultImageRemove = (uploadFile) => {
+  const idx = trialReceiptForm.value.resultImages.indexOf(uploadFile.url)
+  if (idx > -1) {
+    trialReceiptForm.value.resultImages.splice(idx, 1)
+  }
+}
+
+const previewImage = (url) => {
+  window.open(url, '_blank')
+}
+
 const openTrialReceiptDialog = () => {
   if (!userStore.isLogin) {
     showLogin.value = true
@@ -937,7 +1003,8 @@ const openTrialReceiptDialog = () => {
     tasteComment: '',
     tempAdjustment: '',
     moldDifference: '',
-    notes: ''
+    notes: '',
+    resultImages: []
   }
   showTrialReceiptDialog.value = true
 }
@@ -954,7 +1021,8 @@ const submitTrialReceipt = async () => {
       tasteComment: form.tasteComment.trim() || null,
       tempAdjustment: form.tempAdjustment.trim() || null,
       moldDifference: form.moldDifference.trim() || null,
-      notes: form.notes.trim() || null
+      notes: form.notes.trim() || null,
+      resultImages: form.resultImages
     })
     recipe.value.trialReceiptCount = (recipe.value.trialReceiptCount || 0) + 1
     showTrialReceiptDialog.value = false
@@ -1660,6 +1728,52 @@ const submitTrialReceipt = async () => {
 
   .trial-receipt-item {
     padding: 16px;
+  }
+}
+
+.trial-receipt-images {
+  margin-top: 16px;
+  padding-left: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trial-receipt-image-item {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s;
+  border: 1px solid #f0ebe3;
+}
+
+.trial-receipt-image-item:hover {
+  transform: scale(1.05);
+}
+
+.trial-receipt-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #999;
+}
+
+@media (max-width: 768px) {
+  .trial-receipt-images {
+    padding-left: 0;
+    margin-top: 12px;
+  }
+
+  .trial-receipt-image-item {
+    width: 100px;
+    height: 100px;
   }
 }
 </style>

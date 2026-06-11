@@ -147,9 +147,10 @@ export const updateUser = (data) => {
   })
 }
 
-export const uploadImage = (file) => {
+export const uploadImage = (file, imageType = 'general') => {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('imageType', imageType)
   return request({
     url: '/upload/image',
     method: 'post',

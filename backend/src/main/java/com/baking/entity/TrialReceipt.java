@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @TableName("trial_receipt")
@@ -32,6 +33,8 @@ public class TrialReceipt {
 
     private String notes;
 
+    private String resultImages;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
@@ -43,4 +46,7 @@ public class TrialReceipt {
 
     @TableField(exist = false)
     private String userAvatar;
+
+    @TableField(exist = false)
+    private List<String> resultImageList;
 }

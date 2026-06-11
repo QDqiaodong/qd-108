@@ -1,5 +1,7 @@
 package com.baking.util;
 
+import com.baking.enums.ImageType;
+import lombok.Data;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -7,11 +9,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -23,11 +28,28 @@ public class ImageUtil {
     @Value("${baking.upload.url-prefix}")
     private String urlPrefix;
 
-    public String uploadImage(MultipartFile file) throws IOException {
-        return uploadImage(file, true);
+    @Data
+    public static class UploadResult {
+        private String url;
+        private String thumbnailUrl;
+        private String type;
+        private int width;
+        private int height;
+
+        public Map<String, String> toMap() {
+            Map<String, String> map = new HashMap<>();
+            map.put("url", url);
+            map.put("type", type);
+            if (thumbnailUrl != null) {
+                map.put("thumbnailUrl", thumbnailUrl);
+            }
+            map.put("width", String.valueOf(width));
+            map.put("height", String.valueOf(height));
+            return map;
+        }
     }
 
-    public String uploadImage(MultipartFile file, boolean compress) throws IOException {
+    public UploadResult uploadImage(MultipartFile file, ImageType imageType) throws IOException {
         String originalFilename = file.getOriginalFilename();
         String extension = originalFilename != null ?
                 originalFilename.substring(originalFilename.lastIndexOf(".")) : ".jpg";
@@ -41,16 +63,55 @@ public class ImageUtil {
         String fileName = UUID.randomUUID().toString().replace("-", "") + extension;
         Path targetPath = targetDir.resolve(fileName);
 
-        if (compress && isImageFile(extension)) {
-            Thumbnails.of(file.getInputStream())
-                    .size(1920, 1920)
-                    .outputQuality(0.8)
-                    .toFile(targetPath.toFile());
-        } else {
-            file.transferTo(targetPath.toFile());
+        InputStream inputStream = file.getInputStream();
+        Thumbnails.Builder<? extends InputStream> builder = Thumbnails.of(inputStream)
+                .size(imageType.getMaxWidth(), imageType.getMaxHeight())
+                .outputQuality(imageType.getQuality());
+
+        if (".png".equalsIgnoreCase(extension)) {
+            builder.outputFormat("png");
         }
 
-        return urlPrefix + "/" + dateDir + "/" + fileName;
+        builder.toFile(targetPath.toFile());
+
+        UploadResult result = new UploadResult();
+        result.setUrl(urlPrefix + "/" + dateDir + "/" + fileName);
+        result.setType(imageType.getCode());
+
+        int[] dimensions = getImageDimensions(targetPath.toFile());
+        result.setWidth(dimensions[0]);
+        result.setHeight(dimensions[1]);
+
+        if (imageType.isGenerateThumbnail()) {
+            Path thumbDir = Paths.get(uploadPath, dateDir, "thumb");
+            if (!Files.exists(thumbDir)) {
+                Files.createDirectories(thumbDir);
+            }
+            String thumbFileName = UUID.randomUUID().toString().replace("-", "") + extension;
+            Path thumbPath = thumbDir.resolve(thumbFileName);
+
+            Thumbnails.of(targetPath.toFile())
+                    .size(imageType.getThumbWidth(), imageType.getThumbHeight())
+                    .outputQuality(imageType.getQuality())
+                    .toFile(thumbPath.toFile());
+
+            result.setThumbnailUrl(urlPrefix + "/" + dateDir + "/thumb/" + thumbFileName);
+        }
+
+        return result;
+    }
+
+    public String uploadImage(MultipartFile file) throws IOException {
+        return uploadImage(file, true);
+    }
+
+    public String uploadImage(MultipartFile file, boolean compress) throws IOException {
+        if (!compress) {
+            UploadResult result = uploadImage(file, ImageType.GENERAL);
+            return result.getUrl();
+        }
+        UploadResult result = uploadImage(file, ImageType.GENERAL);
+        return result.getUrl();
     }
 
     public String uploadThumbnail(MultipartFile file, int width, int height) throws IOException {
@@ -73,6 +134,18 @@ public class ImageUtil {
                 .toFile(targetPath.toFile());
 
         return urlPrefix + "/" + dateDir + "/thumb/" + fileName;
+    }
+
+    private int[] getImageDimensions(File file) {
+        try {
+            java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(file);
+            if (image != null) {
+                return new int[]{image.getWidth(), image.getHeight()};
+            }
+        } catch (IOException e) {
+            // ignore
+        }
+        return new int[]{0, 0};
     }
 
     private boolean isImageFile(String extension) {

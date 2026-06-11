@@ -19,6 +19,10 @@ public class RecipeImage {
 
     private String imageUrl;
 
+    private String thumbnailUrl;
+
+    private String imageType;
+
     private Integer sortOrder;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

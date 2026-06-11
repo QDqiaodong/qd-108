@@ -11,16 +11,18 @@
 
           <el-form-item label="封面图片" required>
             <el-upload
-              :action="uploadUrl"
+              :action="coverUploadUrl"
               :headers="uploadHeaders"
               list-type="picture-card"
               :limit="1"
               :on-success="handleCoverSuccess"
               :before-upload="beforeUpload"
               accept="image/*"
+              :data="{ imageType: 'cover' }"
             >
               <el-icon><Plus /></el-icon>
             </el-upload>
+            <div class="upload-tip">建议尺寸：1600x1600，清晰展示烘焙成品细节</div>
           </el-form-item>
 
           <el-form-item label="配方简介">
@@ -114,12 +116,13 @@
                     placeholder="描述这一步的操作..."
                   />
                   <el-upload
-                    :action="uploadUrl"
+                    :action="stepUploadUrl"
                     :headers="uploadHeaders"
                     :show-file-list="false"
                     :on-success="(res) => handleStepImageSuccess(idx, res)"
                     :before-upload="beforeUpload"
                     accept="image/*"
+                    :data="{ imageType: 'step' }"
                   >
                     <el-button v-if="!step.image" size="small">
                       <el-icon><Picture /></el-icon>
@@ -172,6 +175,8 @@ const formRef = ref(null)
 const submitting = ref(false)
 const categories = ref([])
 const uploadUrl = '/api/upload/image'
+const coverUploadUrl = '/api/upload/image'
+const stepUploadUrl = '/api/upload/image'
 const uploadHeaders = {}
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
@@ -179,6 +184,7 @@ const newlyUnlocked = ref([])
 const form = reactive({
   title: '',
   coverImage: '',
+  coverThumbnail: '',
   description: '',
   categoryId: null,
   difficulty: 1,
@@ -188,7 +194,7 @@ const form = reactive({
 })
 
 const ingredients = ref([{ name: '', amount: '' }])
-const steps = ref([{ description: '', image: '' }])
+const steps = ref([{ description: '', image: '', thumbnail: '', imageType: 'step' }])
 
 const DRAFT_KEY = 'publish_draft'
 
@@ -225,12 +231,15 @@ const beforeUpload = (file) => {
 
 const handleCoverSuccess = (response) => {
   form.coverImage = response.data.url
+  form.coverThumbnail = response.data.thumbnailUrl || ''
   ElMessage.success('封面上传成功')
 }
 
 const handleStepImageSuccess = (idx, response) => {
   steps.value[idx].image = response.data.url
-  ElMessage.success('图片上传成功')
+  steps.value[idx].thumbnail = response.data.thumbnailUrl || ''
+  steps.value[idx].imageType = response.data.type || 'step'
+  ElMessage.success('步骤图上传成功')
 }
 
 const addIngredient = () => {
@@ -246,7 +255,7 @@ const removeIngredient = (idx) => {
 }
 
 const addStep = () => {
-  steps.value.push({ description: '', image: '' })
+  steps.value.push({ description: '', image: '', thumbnail: '', imageType: 'step' })
 }
 
 const removeStep = (idx) => {
@@ -329,13 +338,20 @@ const submitForm = async () => {
   try {
     const validIngredients = ingredients.value.filter(i => i.name.trim())
     const validSteps = steps.value.filter(s => s.description.trim())
+    const validStepImages = validSteps.filter(s => s.image)
+
+    const imageUrls = [form.coverImage, ...validStepImages.map(s => s.image)]
+    const thumbnailUrls = [form.coverThumbnail || '', ...validStepImages.map(s => s.thumbnail || '')]
+    const imageTypes = ['cover', ...validStepImages.map(s => s.imageType || 'step')]
 
     const result = await createRecipe({
       ...form,
       userId: userStore.userInfo.id,
       ingredients: JSON.stringify(validIngredients),
       steps: JSON.stringify(validSteps),
-      images: [form.coverImage, ...validSteps.filter(s => s.image).map(s => s.image)]
+      images: imageUrls,
+      thumbnails: thumbnailUrls,
+      imageTypes: imageTypes
     })
 
     localStorage.removeItem(DRAFT_KEY)
@@ -442,5 +458,11 @@ const handleAchievementClose = () => {
   position: absolute;
   top: 4px;
   right: 4px;
+}
+
+.upload-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #999;
 }
 </style>

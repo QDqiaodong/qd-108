@@ -56,10 +56,13 @@ CREATE TABLE IF NOT EXISTS `recipe_image` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `recipe_id` bigint NOT NULL COMMENT '配方ID',
   `image_url` varchar(255) NOT NULL COMMENT '图片地址',
+  `thumbnail_url` varchar(255) DEFAULT NULL COMMENT '缩略图地址',
+  `image_type` varchar(20) DEFAULT 'general' COMMENT '图片类型：cover-封面图 step-步骤图 result-成品图 general-通用',
   `sort_order` int DEFAULT 0 COMMENT '排序',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_recipe_id` (`recipe_id`)
+  KEY `idx_recipe_id` (`recipe_id`),
+  KEY `idx_image_type` (`image_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='配方图片表';
 
 CREATE TABLE IF NOT EXISTS `favorite` (
@@ -310,6 +313,7 @@ CREATE TABLE IF NOT EXISTS `trial_receipt` (
   `temp_adjustment` varchar(500) DEFAULT NULL COMMENT '温度调整',
   `mold_difference` varchar(500) DEFAULT NULL COMMENT '模具差异',
   `notes` varchar(1000) DEFAULT NULL COMMENT '其他备注',
+  `result_images` text DEFAULT NULL COMMENT '成品展示图（JSON数组格式）',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
