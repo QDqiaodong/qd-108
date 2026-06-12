@@ -297,3 +297,34 @@ export const getCategoryBakeStats = () => {
     method: 'get'
   })
 }
+
+export const getVariationNotes = (recipeId) => {
+  return request({
+    url: '/variation-notes',
+    method: 'get',
+    params: { recipeId }
+  })
+}
+
+export const getVariationTopics = (recipeId) => {
+  return request({
+    url: '/variation-notes/topics',
+    method: 'get',
+    params: { recipeId }
+  })
+}
+
+export const addVariationNote = (data) => {
+  return request({
+    url: '/variation-notes',
+    method: 'post',
+    data
+  })
+}
+
+export const likeVariationNote = (id) => {
+  return request({
+    url: `/variation-notes/${id}/like`,
+    method: 'post'
+  })
+}

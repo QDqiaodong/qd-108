@@ -321,4 +321,18 @@ CREATE TABLE IF NOT EXISTS `trial_receipt` (
   KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试做回执表';
 
+CREATE TABLE IF NOT EXISTS `recipe_variation_note` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `recipe_id` bigint NOT NULL COMMENT '配方ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `topic` varchar(50) NOT NULL COMMENT '变体主题，如：换面粉、减糖、空气炸锅替代',
+  `content` varchar(500) NOT NULL COMMENT '变体备注内容',
+  `like_count` int DEFAULT 0 COMMENT '点赞数',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_recipe_id` (`recipe_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_recipe_topic` (`recipe_id`, `topic`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='做法变体备注表';
+
 SET FOREIGN_KEY_CHECKS = 1;

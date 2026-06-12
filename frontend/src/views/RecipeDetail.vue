@@ -242,6 +242,53 @@
         </div>
 
         <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">做法变体</h2>
+            <el-button
+              type="success"
+              size="small"
+              @click="openVariationNoteDialog"
+            >
+              分享变体经验
+            </el-button>
+          </div>
+          <p class="variation-desc" v-if="!variationTopicKeys.length">试做者可围绕"换面粉""减糖""空气炸锅替代"等变体提交简短经验，同一配方自然沉淀出多个家庭场景下的做法分支。</p>
+
+          <div v-loading="variationNotesLoading">
+            <div v-if="variationNotesError && !variationNotesLoading" class="section-error" style="padding: 30px 0;">
+              <el-empty :description="'做法变体加载失败：' + variationNotesError" :image-size="60">
+                <el-button size="small" type="primary" @click="loadVariationNotes">重试</el-button>
+              </el-empty>
+            </div>
+            <template v-else>
+              <div v-for="topic in variationTopicKeys" :key="topic" class="variation-topic-group">
+                <div class="variation-topic-header">
+                  <el-tag effect="dark" size="large" class="variation-topic-tag">{{ topic }}</el-tag>
+                  <span class="variation-topic-count">{{ variationNotesGrouped[topic].length }} 条经验</span>
+                </div>
+                <div class="variation-notes-list">
+                  <div v-for="note in variationNotesGrouped[topic]" :key="note.id" class="variation-note-item">
+                    <div class="variation-note-header">
+                      <el-avatar :size="32" :src="note.userAvatar">
+                        {{ note.userName?.charAt(0) }}
+                      </el-avatar>
+                      <div class="variation-note-user-info">
+                        <span class="variation-note-user">{{ note.userName }}</span>
+                        <span class="variation-note-time">{{ note.createdAt }}</span>
+                      </div>
+                      <el-button text size="small" @click="likeVariationNoteAction(note.id)">
+                        👍 {{ note.likeCount || 0 }}
+                      </el-button>
+                    </div>
+                    <p class="variation-note-content">{{ note.content }}</p>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="content-section">
           <h2 class="section-title">制作心得 ({{ recipe.commentCount || 0 }})</h2>
           <div class="comment-input">
             <el-input
@@ -497,6 +544,51 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="showVariationNoteDialog"
+      title="分享做法变体经验"
+      width="520px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="variationNoteForm" label-width="80px">
+        <el-form-item label="变体主题">
+          <el-select
+            v-model="variationNoteForm.topic"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="选择或输入变体主题"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="topic in presetTopics"
+              :key="topic"
+              :label="topic"
+              :value="topic"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="经验内容">
+          <el-input
+            v-model="variationNoteForm.content"
+            type="textarea"
+            :rows="4"
+            placeholder="分享一下你在这种变体做法下的经验，比如换了一种面粉后口感有什么变化..."
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="showVariationNoteDialog = false">取消</el-button>
+        <el-button type="primary" :loading="submittingVariationNote" :disabled="!variationNoteForm.topic || !variationNoteForm.content.trim()" @click="submitVariationNote">
+          提交
+        </el-button>
+      </template>
+    </el-dialog>
+
     <AchievementUnlock v-model:visible="showAchievementUnlock" :achievements="newlyUnlocked" />
 
     <ExecutionModeOverlay
@@ -545,7 +637,11 @@ import {
   getTrialReceipts,
   addTrialReceipt,
   uploadImage,
-  getRecipeBakeStats
+  getRecipeBakeStats,
+  getVariationNotes,
+  getVariationTopics,
+  addVariationNote as addVariationNoteApi,
+  likeVariationNote as likeVariationNoteApi
 } from '@/api'
 
 const REQUEST_TIMEOUT = 8000
@@ -599,6 +695,18 @@ const trialReceiptForm = ref({
   resultImages: []
 })
 const submittingTrialReceipt = ref(false)
+
+const showVariationNoteDialog = ref(false)
+const variationNotesGrouped = ref({})
+const variationTopicKeys = ref([])
+const variationNotesLoading = ref(false)
+const variationNotesError = ref(null)
+const submittingVariationNote = ref(false)
+const variationNoteForm = ref({
+  topic: '',
+  content: ''
+})
+const presetTopics = ['换面粉', '减糖', '空气炸锅替代', '减油', '换模具', '无麸质', '素食版', '减盐']
 
 const completedSteps = ref(new Set())
 const stepRefs = ref([])
@@ -1008,6 +1116,7 @@ const loadRecipe = async () => {
     loadBakeStats()
     loadComments()
     loadTrialReceipts()
+    loadVariationNotes()
   } catch (e) {
     console.error(e)
     recipe.value = null
@@ -1192,6 +1301,79 @@ const submitTrialReceipt = async () => {
     ElMessage.error('提交失败，请重试')
   } finally {
     submittingTrialReceipt.value = false
+  }
+}
+
+const loadVariationNotes = async () => {
+  variationNotesLoading.value = true
+  variationNotesError.value = null
+  try {
+    const data = await withTimeout(getVariationNotes(route.params.id))
+    variationNotesGrouped.value = data || {}
+    variationTopicKeys.value = Object.keys(data || {})
+  } catch (e) {
+    console.error(e)
+    variationNotesGrouped.value = {}
+    variationTopicKeys.value = []
+    variationNotesError.value = e.message || '加载失败'
+  } finally {
+    variationNotesLoading.value = false
+  }
+}
+
+const openVariationNoteDialog = async () => {
+  if (!userStore.isLogin) {
+    showLogin.value = true
+    return
+  }
+  try {
+    const existingTopics = await withTimeout(getVariationTopics(route.params.id), 5000)
+    const allTopics = [...new Set([...presetTopics, ...(existingTopics || [])])]
+    presetTopics.splice(0, presetTopics.length, ...allTopics)
+  } catch (e) {
+    console.error(e)
+  }
+  variationNoteForm.value = { topic: '', content: '' }
+  showVariationNoteDialog.value = true
+}
+
+const submitVariationNote = async () => {
+  if (!userStore.isLogin) {
+    showLogin.value = true
+    return
+  }
+  if (!variationNoteForm.value.topic || !variationNoteForm.value.content.trim()) return
+  submittingVariationNote.value = true
+  try {
+    await addVariationNoteApi({
+      recipeId: route.params.id,
+      userId: userStore.userInfo.id,
+      topic: variationNoteForm.value.topic,
+      content: variationNoteForm.value.content.trim()
+    })
+    showVariationNoteDialog.value = false
+    ElMessage.success('变体经验提交成功')
+    loadVariationNotes()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('提交失败，请重试')
+  } finally {
+    submittingVariationNote.value = false
+  }
+}
+
+const likeVariationNoteAction = async (id) => {
+  try {
+    await likeVariationNoteApi(id)
+    for (const topic of variationTopicKeys.value) {
+      const note = variationNotesGrouped.value[topic]?.find(n => n.id === id)
+      if (note) {
+        note.likeCount = (note.likeCount || 0) + 1
+        break
+      }
+    }
+  } catch (e) {
+    console.error(e)
   }
 }
 </script>
@@ -2017,6 +2199,100 @@ const submitTrialReceipt = async () => {
   color: #999;
 }
 
+.variation-desc {
+  font-size: 14px;
+  color: #999;
+  line-height: 1.8;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: #faf7f2;
+  border-radius: 8px;
+  border: 1px dashed #e8e0d0;
+}
+
+.variation-topic-group {
+  margin-bottom: 24px;
+}
+
+.variation-topic-group:last-child {
+  margin-bottom: 0;
+}
+
+.variation-topic-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.variation-topic-tag {
+  background: linear-gradient(135deg, #ff9a56 0%, #ff6b6b 100%);
+  border-color: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 16px;
+  height: 32px;
+  line-height: 32px;
+}
+
+.variation-topic-count {
+  font-size: 13px;
+  color: #999;
+}
+
+.variation-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 8px;
+  border-left: 3px solid #f0ebe3;
+  margin-left: 8px;
+}
+
+.variation-note-item {
+  padding: 14px 16px;
+  background: #faf7f2;
+  border-radius: 8px;
+  border: 1px solid #f0ebe3;
+  transition: border-color 0.2s ease;
+}
+
+.variation-note-item:hover {
+  border-color: #ffe0cc;
+}
+
+.variation-note-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.variation-note-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.variation-note-user {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+
+.variation-note-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.variation-note-content {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.8;
+  margin-left: 42px;
+  word-break: break-word;
+}
+
 @media (max-width: 768px) {
   .trial-receipt-images {
     padding-left: 0;
@@ -2026,6 +2302,20 @@ const submitTrialReceipt = async () => {
   .trial-receipt-image-item {
     width: 100px;
     height: 100px;
+  }
+
+  .variation-note-content {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .variation-notes-list {
+    margin-left: 0;
+    padding-left: 12px;
+  }
+
+  .variation-topic-header {
+    flex-wrap: wrap;
   }
 }
 </style>
