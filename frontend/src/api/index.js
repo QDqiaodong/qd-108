@@ -189,6 +189,13 @@ export const getCheckInStatus = (userId) => {
   })
 }
 
+export const getWeeklyReview = (userId) => {
+  return request({
+    url: `/achievements/weekly-review/${userId}`,
+    method: 'get'
+  })
+}
+
 export const getCalendarMonthData = (userId, year, month) => {
   return request({
     url: `/calendar/month/${userId}`,

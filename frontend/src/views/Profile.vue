@@ -45,6 +45,14 @@
           <BadgeWall :achievements="userAchievements" />
         </div>
 
+        <div class="weekly-review-section">
+          <WeeklyReview
+            v-if="userStore.userInfo?.id"
+            ref="weeklyReviewRef"
+            :userId="userStore.userInfo.id"
+          />
+        </div>
+
         <div class="calendar-section">
           <CalendarView
             v-if="userStore.userInfo?.id"
@@ -174,6 +182,7 @@ import LoginDialog from '@/components/LoginDialog.vue'
 import BadgeWall from '@/components/BadgeWall.vue'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
 import CalendarView from '@/components/CalendarView.vue'
+import WeeklyReview from '@/components/WeeklyReview.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { List, ShoppingCart } from '@element-plus/icons-vue'
 
@@ -192,6 +201,7 @@ const hasCheckedInToday = ref(false)
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
 const calendarRef = ref(null)
+const weeklyReviewRef = ref(null)
 
 const selectMode = ref(false)
 const selectedRecipeIds = ref([])
@@ -349,6 +359,10 @@ const handleCheckIn = async () => {
       calendarRef.value.refreshCalendar()
     }
 
+    if (weeklyReviewRef.value) {
+      weeklyReviewRef.value.refresh()
+    }
+
     if (res.newlyUnlocked && res.newlyUnlocked.length > 0) {
       newlyUnlocked.value = res.newlyUnlocked
       showAchievementUnlock.value = true
@@ -459,6 +473,10 @@ const handleLoginSuccess = () => {
 }
 
 .badge-section {
+  margin-bottom: 20px;
+}
+
+.weekly-review-section {
   margin-bottom: 20px;
 }
 

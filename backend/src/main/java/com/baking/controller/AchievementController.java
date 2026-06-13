@@ -1,6 +1,7 @@
 package com.baking.controller;
 
 import com.baking.common.Result;
+import com.baking.dto.WeeklyReviewDTO;
 import com.baking.entity.Achievement;
 import com.baking.entity.UserAchievement;
 import com.baking.service.AchievementService;
@@ -59,5 +60,10 @@ public class AchievementController {
     @PostMapping("/check-favorite/{userId}")
     public Result<List<UserAchievement>> checkFavoriteAchievements(@PathVariable Long userId) {
         return Result.success(achievementService.checkFavoriteAchievements(userId));
+    }
+
+    @GetMapping("/weekly-review/{userId}")
+    public Result<WeeklyReviewDTO> getWeeklyReview(@PathVariable Long userId) {
+        return Result.success(achievementService.getWeeklyReview(userId));
     }
 }
