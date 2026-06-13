@@ -806,8 +806,11 @@ const {
   exitExecutionMode,
   goNext,
   goPrev,
-  goToStep
-} = useExecutionMode(() => steps.value, completedSteps)
+  goToStep,
+  loadExecState
+} = useExecutionMode(() => steps.value, completedSteps, {
+  storageKey: route.params.id ? `recipe_exec_${route.params.id}` : null
+})
 
 watch(executionActive, (val) => {
   if (val) {
@@ -843,6 +846,9 @@ const isStepCompleted = (idx) => {
 }
 
 const isCurrentStep = (idx) => {
+  if (executionActive.value) {
+    return idx === executionStepIndex.value
+  }
   return idx === firstUncompletedIndex.value
 }
 
@@ -1004,8 +1010,14 @@ const getDifficultyText = (level) => {
 
 const currentStepText = computed(() => {
   if (!steps.value.length) return ''
-  const idx = firstUncompletedIndex.value
-  if (idx < 0) return '全部完成'
+  let idx
+  if (executionActive.value) {
+    idx = executionStepIndex.value
+    if (idx >= steps.value.length) return '全部完成'
+  } else {
+    idx = firstUncompletedIndex.value
+    if (idx < 0) return '全部完成'
+  }
   const desc = steps.value[idx]?.description || ''
   return `第${idx + 1}步: ${desc.length > 20 ? desc.slice(0, 20) + '...' : desc}`
 })
@@ -1077,13 +1089,49 @@ const toggleCookingMode = async () => {
       timerSyncInterval = null
     }
     timerRemaining.value = -1
+    clearCookingModeState()
     ElMessage.success('已退出烹饪模式')
   } else {
     cookingMode.value = true
     await requestWakeLock()
     syncTimerFromStorage()
     timerSyncInterval = setInterval(syncTimerFromStorage, 1000)
+    persistCookingMode()
     ElMessage.success('已开启烹饪模式，屏幕将保持常亮')
+  }
+}
+
+const cookingModeStorageKey = computed(() => `recipe_cooking_${route.params.id}`)
+
+const persistCookingMode = () => {
+  try {
+    localStorage.setItem(cookingModeStorageKey.value, JSON.stringify({ active: cookingMode.value }))
+  } catch (e) {
+    // ignore
+  }
+}
+
+const clearCookingModeState = () => {
+  try {
+    localStorage.removeItem(cookingModeStorageKey.value)
+  } catch (e) {
+    // ignore
+  }
+}
+
+const restoreCookingMode = () => {
+  try {
+    const data = localStorage.getItem(cookingModeStorageKey.value)
+    if (!data) return
+    const parsed = JSON.parse(data)
+    if (parsed.active) {
+      cookingMode.value = true
+      requestWakeLock()
+      syncTimerFromStorage()
+      timerSyncInterval = setInterval(syncTimerFromStorage, 1000)
+    }
+  } catch (e) {
+    // ignore
   }
 }
 
@@ -1096,11 +1144,13 @@ const handleVisibilityChange = async () => {
 onMounted(() => {
   loadRecipe()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  restoreCookingMode()
 })
 
 onUnmounted(() => {
   if (cookingMode.value) {
     releaseWakeLock()
+    persistCookingMode()
   }
   if (timerSyncInterval) {
     clearInterval(timerSyncInterval)
@@ -1128,6 +1178,12 @@ const loadRecipe = async () => {
     loadComments()
     loadTrialReceipts()
     loadVariationNotes()
+
+    nextTick(() => {
+      if (loadExecState()) {
+        document.body.style.overflow = 'hidden'
+      }
+    })
   } catch (e) {
     console.error(e)
     recipe.value = null

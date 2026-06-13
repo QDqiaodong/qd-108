@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <transition name="fade">
-      <div v-if="visible" class="achievement-overlay" @click="handleClose">
+      <div v-if="visible && dedupedAchievements.length > 0" class="achievement-overlay" @click="handleClose">
         <div class="confetti-container">
           <div
             v-for="i in 50"
@@ -37,7 +37,9 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
+
+const SHOWN_KEY = 'achievement_shown_ids'
 
 const props = defineProps({
   visible: {
@@ -54,36 +56,93 @@ const emit = defineEmits(['update:visible', 'close'])
 
 const currentIndex = ref(0)
 const showBadge = ref(false)
+let showTimer = null
+let closeTimer = null
+let nextTimer = null
+
+const getShownIds = () => {
+  try {
+    const raw = sessionStorage.getItem(SHOWN_KEY)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+const markShown = (id) => {
+  const ids = getShownIds()
+  ids.add(id)
+  try {
+    sessionStorage.setItem(SHOWN_KEY, JSON.stringify([...ids]))
+  } catch {
+    // ignore
+  }
+}
+
+const dedupedAchievements = computed(() => {
+  const shown = getShownIds()
+  return (props.achievements || []).filter(a => {
+    const aid = a.achievementId || a.achievement?.id
+    return aid != null && !shown.has(aid)
+  })
+})
 
 const currentAchievement = computed(() => {
-  return props.achievements[currentIndex.value] || null
+  return dedupedAchievements.value[currentIndex.value] || null
 })
 
 const hasNext = computed(() => {
-  return currentIndex.value < props.achievements.length - 1
+  return currentIndex.value < dedupedAchievements.value.length - 1
 })
+
+const clearTimers = () => {
+  if (showTimer) { clearTimeout(showTimer); showTimer = null }
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
+  if (nextTimer) { clearTimeout(nextTimer); nextTimer = null }
+}
 
 watch(() => props.visible, (val) => {
   if (val) {
+    if (dedupedAchievements.value.length === 0) {
+      emit('update:visible', false)
+      emit('close')
+      return
+    }
     currentIndex.value = 0
-    setTimeout(() => {
-      showBadge.value = true
+    clearTimers()
+    showTimer = setTimeout(() => {
+      if (props.visible) {
+        showBadge.value = true
+      }
     }, 100)
   } else {
+    clearTimers()
     showBadge.value = false
   }
 })
 
 watch(() => props.achievements, (val) => {
-  if (val && val.length > 0) {
+  if (val && val.length > 0 && props.visible) {
     currentIndex.value = 0
+    clearTimers()
+    showTimer = setTimeout(() => {
+      if (props.visible) {
+        showBadge.value = true
+      }
+    }, 100)
   }
 })
 
 const handleNext = () => {
+  if (currentAchievement.value) {
+    const aid = currentAchievement.value.achievementId || currentAchievement.value.achievement?.id
+    if (aid != null) markShown(aid)
+  }
+
   if (hasNext.value) {
     showBadge.value = false
-    setTimeout(() => {
+    clearTimers()
+    nextTimer = setTimeout(() => {
       currentIndex.value++
       showBadge.value = true
     }, 200)
@@ -93,31 +152,21 @@ const handleNext = () => {
 }
 
 const handleClose = () => {
+  if (currentAchievement.value) {
+    const aid = currentAchievement.value.achievementId || currentAchievement.value.achievement?.id
+    if (aid != null) markShown(aid)
+  }
   showBadge.value = false
-  setTimeout(() => {
+  clearTimers()
+  closeTimer = setTimeout(() => {
     emit('update:visible', false)
     emit('close')
   }, 200)
 }
 
-const getConfettiStyle = (index) => {
-  const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff9a56', '#c56cf0']
-  const left = Math.random() * 100
-  const delay = Math.random() * 3
-  const duration = 3 + Math.random() * 2
-  const color = colors[index % colors.length]
-  const size = 6 + Math.random() * 8
-
-  return {
-    left: `${left}%`,
-    backgroundColor: color,
-    width: `${size}px`,
-    height: `${size}px`,
-    animationDelay: `${delay}s`,
-    animationDuration: `${duration}s`,
-    borderRadius: Math.random() > 0.5 ? '50%' : '2px'
-  }
-}
+onUnmounted(() => {
+  clearTimers()
+})
 </script>
 
 <style scoped>

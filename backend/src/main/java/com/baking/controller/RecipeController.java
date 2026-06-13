@@ -11,9 +11,12 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/recipes")
@@ -83,13 +86,23 @@ public class RecipeController {
                 request.getThumbnails(),
                 request.getImageTypes());
 
-        List<UserAchievement> newlyUnlocked = achievementService.checkPublishAchievements(request.getUserId());
+        List<UserAchievement> publishUnlocked = achievementService.checkPublishAchievements(request.getUserId());
         List<UserAchievement> categoryUnlocked = achievementService.checkCategoryAchievements(
                 request.getUserId(), request.getCategoryId());
-        newlyUnlocked.addAll(categoryUnlocked);
-
         List<UserAchievement> checkInUnlocked = achievementService.checkIn(request.getUserId());
-        newlyUnlocked.addAll(checkInUnlocked);
+
+        List<UserAchievement> allUnlocked = new ArrayList<>();
+        allUnlocked.addAll(publishUnlocked);
+        allUnlocked.addAll(categoryUnlocked);
+        allUnlocked.addAll(checkInUnlocked);
+
+        Set<Long> seenIds = new HashSet<>();
+        List<UserAchievement> newlyUnlocked = new ArrayList<>();
+        for (UserAchievement ua : allUnlocked) {
+            if (ua.getAchievementId() != null && seenIds.add(ua.getAchievementId())) {
+                newlyUnlocked.add(ua);
+            }
+        }
 
         int streakDays = achievementService.getStreakDays(request.getUserId());
 
