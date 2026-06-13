@@ -20,7 +20,10 @@ public class BakePlanService {
     public List<BakePlan> getMonthPlans(Long userId, int year, int month) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+        return getPlansBetween(userId, startDate, endDate);
+    }
 
+    public List<BakePlan> getPlansBetween(Long userId, LocalDate startDate, LocalDate endDate) {
         LambdaQueryWrapper<BakePlan> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(BakePlan::getUserId, userId);
         wrapper.between(BakePlan::getPlanDate, startDate, endDate);

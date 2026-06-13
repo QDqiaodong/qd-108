@@ -365,13 +365,18 @@ const calendarDays = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  const parseLocalDate = (dateStr) => {
+    const parts = dateStr.split('-')
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+  }
+
   const checkInSet = new Set(checkInDates.value.map(item => {
-    const date = new Date(item.checkDate)
+    const date = parseLocalDate(item.checkDate)
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
   }))
 
   const planSet = new Set(planDates.value.map(d => {
-    const date = new Date(d.planDate)
+    const date = parseLocalDate(d.planDate)
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
   }))
 
@@ -438,7 +443,25 @@ const calendarDays = computed(() => {
 
 const loadMonthData = async () => {
   try {
-    const res = await getCalendarMonthData(props.userId, currentYear.value, currentMonth.value)
+    const year = currentYear.value
+    const month = currentMonth.value - 1
+    const firstDay = new Date(year, month, 1)
+    const startDayOfWeek = firstDay.getDay()
+    const calStartDate = new Date(year, month, 1 - startDayOfWeek)
+    const calEndDate = new Date(year, month, 1 - startDayOfWeek)
+    calEndDate.setDate(calEndDate.getDate() + 41)
+
+    const formatCalDate = (d) => {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+
+    const startDateStr = formatCalDate(calStartDate)
+    const endDateStr = formatCalDate(calEndDate)
+
+    const res = await getCalendarMonthData(props.userId, currentYear.value, currentMonth.value, startDateStr, endDateStr)
     checkInDates.value = res.checkIns || []
     planDates.value = res.plans || []
     streakDays.value = res.streakDays || 0

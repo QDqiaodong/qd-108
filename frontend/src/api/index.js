@@ -196,11 +196,14 @@ export const getWeeklyReview = (userId) => {
   })
 }
 
-export const getCalendarMonthData = (userId, year, month) => {
+export const getCalendarMonthData = (userId, year, month, startDate, endDate) => {
+  const params = { year, month }
+  if (startDate) params.startDate = startDate
+  if (endDate) params.endDate = endDate
   return request({
     url: `/calendar/month/${userId}`,
     method: 'get',
-    params: { year, month }
+    params
   })
 }
 

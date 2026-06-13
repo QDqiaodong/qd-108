@@ -211,7 +211,10 @@ public class AchievementService {
     public List<CheckIn> getMonthCheckIns(Long userId, int year, int month) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+        return getCheckInsBetween(userId, startDate, endDate);
+    }
 
+    public List<CheckIn> getCheckInsBetween(Long userId, LocalDate startDate, LocalDate endDate) {
         LambdaQueryWrapper<CheckIn> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(CheckIn::getUserId, userId);
         wrapper.between(CheckIn::getCheckDate, startDate, endDate);

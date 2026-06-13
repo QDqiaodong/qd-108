@@ -34,9 +34,22 @@ public class CalendarController {
     public Result<Map<String, Object>> getMonthData(
             @PathVariable Long userId,
             @RequestParam int year,
-            @RequestParam int month) {
-        List<CheckIn> checkIns = achievementService.getMonthCheckIns(userId, year, month);
-        List<BakePlan> plans = bakePlanService.getMonthPlans(userId, year, month);
+            @RequestParam int month,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        LocalDate queryStartDate;
+        LocalDate queryEndDate;
+
+        if (startDate != null && endDate != null) {
+            queryStartDate = LocalDate.parse(startDate);
+            queryEndDate = LocalDate.parse(endDate);
+        } else {
+            queryStartDate = LocalDate.of(year, month, 1);
+            queryEndDate = queryStartDate.plusMonths(1).minusDays(1);
+        }
+
+        List<CheckIn> checkIns = achievementService.getCheckInsBetween(userId, queryStartDate, queryEndDate);
+        List<BakePlan> plans = bakePlanService.getPlansBetween(userId, queryStartDate, queryEndDate);
         int streakDays = achievementService.getStreakDays(userId);
 
         Map<String, Object> result = new HashMap<>();
