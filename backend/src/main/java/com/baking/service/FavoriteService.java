@@ -8,6 +8,7 @@ import com.baking.entity.FavoriteFolder;
 import com.baking.mapper.FavoriteFolderMapper;
 import com.baking.mapper.FavoriteMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,24 +30,34 @@ public class FavoriteService {
     }
 
     @Transactional
-    public void addFavorite(Long userId, Long recipeId, Long folderId) {
-        if (!isFavorited(userId, recipeId)) {
-            Favorite favorite = new Favorite();
-            favorite.setUserId(userId);
-            favorite.setRecipeId(recipeId);
-            favorite.setFolderId(folderId);
-            favoriteMapper.insert(favorite);
-            recipeService.incrementFavoriteCount(recipeId, 1);
+    public boolean addFavorite(Long userId, Long recipeId, Long folderId) {
+        if (isFavorited(userId, recipeId)) {
+            return false;
         }
+        Favorite favorite = new Favorite();
+        favorite.setUserId(userId);
+        favorite.setRecipeId(recipeId);
+        favorite.setFolderId(folderId);
+        try {
+            favoriteMapper.insert(favorite);
+        } catch (DuplicateKeyException e) {
+            return false;
+        }
+        recipeService.incrementFavoriteCount(recipeId, 1);
+        return true;
     }
 
     @Transactional
-    public void removeFavorite(Long userId, Long recipeId) {
+    public boolean removeFavorite(Long userId, Long recipeId) {
         LambdaQueryWrapper<Favorite> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Favorite::getUserId, userId);
         wrapper.eq(Favorite::getRecipeId, recipeId);
-        favoriteMapper.delete(wrapper);
-        recipeService.incrementFavoriteCount(recipeId, -1);
+        int deleted = favoriteMapper.delete(wrapper);
+        if (deleted > 0) {
+            recipeService.incrementFavoriteCount(recipeId, -1);
+            return true;
+        }
+        return false;
     }
 
     public List<FavoriteFolder> getUserFolders(Long userId) {

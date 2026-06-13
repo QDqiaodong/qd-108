@@ -64,6 +64,7 @@
                 :type="isFavorited ? 'danger' : 'default'"
                 @click="toggleFavorite"
                 :icon="isFavorited ? StarFilled : Star"
+                :loading="favoriteLoading"
               >
                 {{ isFavorited ? '已收藏' : '收藏' }}
               </el-button>
@@ -1140,21 +1141,29 @@ const loadBakeStats = async () => {
   }
 }
 
+const favoriteLoading = ref(false)
+
 const toggleFavorite = async () => {
   if (!userStore.isLogin) {
     showLogin.value = true
     return
   }
+  if (favoriteLoading.value) return
+  favoriteLoading.value = true
   try {
     if (isFavorited.value) {
-      await removeFavorite(userStore.userInfo.id, route.params.id)
-      isFavorited.value = false
-      recipe.value.favoriteCount--
+      const result = await removeFavorite(userStore.userInfo.id, route.params.id)
+      if (result.removed) {
+        isFavorited.value = false
+        recipe.value.favoriteCount = Math.max(0, (recipe.value.favoriteCount || 1) - 1)
+      }
       ElMessage.success('已取消收藏')
     } else {
       const result = await addFavorite({ userId: userStore.userInfo.id, recipeId: route.params.id })
-      isFavorited.value = true
-      recipe.value.favoriteCount++
+      if (result.added) {
+        isFavorited.value = true
+        recipe.value.favoriteCount = (recipe.value.favoriteCount || 0) + 1
+      }
       ElMessage.success('收藏成功')
 
       if (result.newlyUnlocked && result.newlyUnlocked.length > 0) {
@@ -1164,6 +1173,8 @@ const toggleFavorite = async () => {
     }
   } catch (e) {
     console.error(e)
+  } finally {
+    favoriteLoading.value = false
   }
 }
 

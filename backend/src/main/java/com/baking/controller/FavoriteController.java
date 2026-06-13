@@ -30,19 +30,26 @@ public class FavoriteController {
 
     @PostMapping
     public Result<Map<String, Object>> addFavorite(@RequestBody FavoriteRequest request) {
-        favoriteService.addFavorite(request.getUserId(), request.getRecipeId(), request.getFolderId());
-        List<UserAchievement> newlyUnlocked = achievementService.checkFavoriteAchievements(request.getUserId());
+        boolean added = favoriteService.addFavorite(request.getUserId(), request.getRecipeId(), request.getFolderId());
 
         Map<String, Object> result = new HashMap<>();
         result.put("success", true);
-        result.put("newlyUnlocked", newlyUnlocked);
+        result.put("added", added);
+
+        if (added) {
+            List<UserAchievement> newlyUnlocked = achievementService.checkFavoriteAchievements(request.getUserId());
+            result.put("newlyUnlocked", newlyUnlocked);
+        }
         return Result.success(result);
     }
 
     @DeleteMapping
-    public Result<Void> removeFavorite(@RequestParam Long userId, @RequestParam Long recipeId) {
-        favoriteService.removeFavorite(userId, recipeId);
-        return Result.success();
+    public Result<Map<String, Object>> removeFavorite(@RequestParam Long userId, @RequestParam Long recipeId) {
+        boolean removed = favoriteService.removeFavorite(userId, recipeId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("removed", removed);
+        return Result.success(result);
     }
 
     @GetMapping("/folders/{userId}")

@@ -7,6 +7,7 @@ import com.baking.entity.Recipe;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface RecipeMapper extends BaseMapper<Recipe> {
@@ -99,4 +100,7 @@ public interface RecipeMapper extends BaseMapper<Recipe> {
             "AND r.bake_time IS NOT NULL " +
             "AND (#{categoryId} IS NULL OR r.category_id = #{categoryId})")
     java.util.List<java.util.Map<String, Object>> selectBakeParamsForStats(@Param("categoryId") Long categoryId);
+
+    @Update("UPDATE recipe SET favorite_count = GREATEST(0, COALESCE(favorite_count, 0) + #{delta}) WHERE id = #{id}")
+    int incrementFavoriteCountAtomic(@Param("id") Long id, @Param("delta") int delta);
 }

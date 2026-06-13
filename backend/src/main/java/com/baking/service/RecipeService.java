@@ -210,12 +210,8 @@ public class RecipeService {
     }
 
     public void incrementFavoriteCount(Long recipeId, int delta) {
-        Recipe recipe = recipeMapper.selectById(recipeId);
-        if (recipe != null) {
-            recipe.setFavoriteCount(Math.max(0, recipe.getFavoriteCount() + delta));
-            recipeMapper.updateById(recipe);
-            clearAllHotRecipeCaches();
-        }
+        recipeMapper.incrementFavoriteCountAtomic(recipeId, delta);
+        clearAllHotRecipeCaches();
     }
 
     public void incrementCommentCount(Long recipeId, int delta) {
