@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const AMOUNT_REGEX = /^([\d.\/]+)\s*(.*)$/
 
@@ -36,8 +36,37 @@ function scaleAmount(amountStr, multiplier) {
   return `${formatScaledValue(scaled)}${unit ? ' ' + unit : ''}`
 }
 
-export function useIngredientScaler(ingredientsGetter) {
-  const scaleFactor = ref(1)
+export function useIngredientScaler(ingredientsGetter, options = {}) {
+  const { storageKey = null } = options
+
+  const loadFromStorage = () => {
+    if (!storageKey) return 1
+    try {
+      const stored = localStorage.getItem(`scale_factor_${storageKey}`)
+      if (stored) {
+        const val = parseFloat(stored)
+        if (!isNaN(val) && val >= 0.25 && val <= 10) return val
+      }
+    } catch (e) {
+      console.error('加载缩放因子失败', e)
+    }
+    return 1
+  }
+
+  const scaleFactor = ref(loadFromStorage())
+
+  const saveToStorage = (val) => {
+    if (!storageKey) return
+    try {
+      localStorage.setItem(`scale_factor_${storageKey}`, String(val))
+    } catch (e) {
+      console.error('保存缩放因子失败', e)
+    }
+  }
+
+  watch(scaleFactor, (newVal) => {
+    saveToStorage(newVal)
+  })
 
   const scaledIngredients = computed(() => {
     const source = ingredientsGetter()

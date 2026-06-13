@@ -45,6 +45,15 @@
         </div>
       </div>
 
+      <div class="scale-toolbar" v-if="categorySections.length">
+        <IngredientScaler
+          :scale-factor="scaleFactor"
+          @increase="increaseScale"
+          @decrease="decreaseScale"
+          @reset="resetScale"
+        />
+      </div>
+
       <div class="summary-card" v-if="categorySections.length">
         <div class="summary-title">食材概览</div>
         <div class="summary-categories">
@@ -132,13 +141,16 @@
                     :key="src.recipeId"
                     class="source-chip"
                   >
-                    {{ src.recipeTitle }}: {{ src.originalAmount }}
+                    {{ src.recipeTitle }}: {{ src.scaledAmount || src.originalAmount }}
                   </span>
                 </div>
               </div>
               <div class="row-amount">
                 <div class="amount-main" :class="{ 'amount-merged': item.isMerged }">
                   {{ item.displayAmount }}
+                </div>
+                <div v-if="scaleFactor !== 1 && item.originalDisplayAmount" class="amount-original">
+                  原始：{{ item.originalDisplayAmount }}
                 </div>
                 <div v-if="item.isMerged && item.mergedNote" class="amount-note">
                   {{ item.mergedNote }}
@@ -164,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -175,6 +187,7 @@ import {
   CircleCheckFilled
 } from '@element-plus/icons-vue'
 import { getRecipesByIds, getIngredientAliasMap } from '@/api'
+import IngredientScaler from '@/components/IngredientScaler.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -184,6 +197,75 @@ const recipes = ref([])
 const aliasMap = ref({})
 const checkedKeys = ref(new Set())
 const storageKey = 'prepare_list_checked'
+
+const scaleFactor = ref(1)
+const scaleStorageKey = computed(() => {
+  const idsStr = route.query.ids || ''
+  return `prepare_scale_${idsStr}`
+})
+
+const loadScaleFromStorage = () => {
+  try {
+    const stored = localStorage.getItem(scaleStorageKey.value)
+    if (stored) {
+      const val = parseFloat(stored)
+      if (!isNaN(val) && val >= 0.25 && val <= 10) {
+        scaleFactor.value = val
+      }
+    }
+  } catch (e) {
+    console.error('加载缩放因子失败', e)
+  }
+}
+
+const saveScaleToStorage = () => {
+  try {
+    localStorage.setItem(scaleStorageKey.value, String(scaleFactor.value))
+  } catch (e) {
+    console.error('保存缩放因子失败', e)
+  }
+}
+
+watch(scaleFactor, () => {
+  saveScaleToStorage()
+})
+
+const increaseScale = (step = 0.5) => {
+  scaleFactor.value = Math.min(10, scaleFactor.value + step)
+}
+
+const decreaseScale = (step = 0.5) => {
+  scaleFactor.value = Math.max(0.25, scaleFactor.value - step)
+}
+
+const resetScale = () => {
+  scaleFactor.value = 1
+}
+
+const scaleAmount = (amountStr, multiplier) => {
+  if (multiplier === 1) return amountStr
+  const match = String(amountStr).trim().match(AMOUNT_REGEX)
+  if (!match) return amountStr
+
+  const numPart = match[1]
+  let numeric = null
+  if (numPart.includes('/')) {
+    const parts = numPart.split('/')
+    if (parts.length === 2) {
+      const n = parseFloat(parts[0])
+      const d = parseFloat(parts[1])
+      if (!isNaN(n) && !isNaN(d) && d !== 0) numeric = n / d
+    }
+  } else {
+    const val = parseFloat(numPart)
+    if (!isNaN(val)) numeric = val
+  }
+  if (numeric === null) return amountStr
+
+  const unit = match[2] || ''
+  const scaled = numeric * multiplier
+  return `${formatAmount(scaled)}${unit ? ' ' + unit : ''}`
+}
 
 const AMOUNT_REGEX = /^([\d.\/]+)\s*(.*)$/
 
@@ -373,7 +455,8 @@ const mergedIngredients = computed(() => {
     const ingredients = parseIngredients(recipe)
     for (const ing of ingredients) {
       const rawName = ing.name || ''
-      const canonicalName = normalizeName(rawName)
+      const canonicalName = ing.canonicalName || normalizeName(rawName)
+      const displayName = rawName
       const parsed = parseAmount(ing.amount)
       const normalizedUnit = normalizeUnit(parsed.unit)
 
@@ -383,6 +466,7 @@ const mergedIngredients = computed(() => {
         merged[key] = {
           key,
           name: canonicalName,
+          displayName: displayName,
           unit: normalizedUnit,
           originalUnit: parsed.unit || '',
           totalNumeric: null,
@@ -390,7 +474,8 @@ const mergedIngredients = computed(() => {
           aliasCount: 0,
           mergedNote: '',
           sources: [],
-          sourceNames: new Set()
+          sourceNames: new Set(),
+          displayNames: new Set()
         }
       }
 
@@ -398,11 +483,12 @@ const mergedIngredients = computed(() => {
         merged[key].aliasCount += 1
       }
       merged[key].sourceNames.add(rawName)
+      merged[key].displayNames.add(displayName)
 
       merged[key].sources.push({
         recipeId: recipe.id,
         recipeTitle: recipe.title,
-        originalName: rawName,
+        originalName: displayName,
         originalAmount: ing.amount || '',
         parsed
       })
@@ -420,22 +506,40 @@ const mergedIngredients = computed(() => {
 
   for (const key of Object.keys(merged)) {
     const item = merged[key]
-    if (item.totalNumeric !== null && item.unit) {
-      item.displayAmount = `${formatAmount(item.totalNumeric)}${item.unit === '个' || item.unit === '杯' || item.unit === '小勺' || item.unit === '大勺' ? item.unit : ' ' + item.unit}`
+    if (item.displayNames.size === 1) {
+      item.name = [...item.displayNames][0]
+    }
+
+    const scale = scaleFactor.value
+    const scaledTotalNumeric = item.totalNumeric !== null ? item.totalNumeric * scale : null
+
+    if (scaledTotalNumeric !== null && item.unit) {
+      item.displayAmount = `${formatAmount(scaledTotalNumeric)}${item.unit === '个' || item.unit === '杯' || item.unit === '小勺' || item.unit === '大勺' ? item.unit : ' ' + item.unit}`
+      item.originalDisplayAmount = `${formatAmount(item.totalNumeric)}${item.unit === '个' || item.unit === '杯' || item.unit === '小勺' || item.unit === '大勺' ? item.unit : ' ' + item.unit}`
       if (item.isMerged && item.sources.length > 1) {
-        item.mergedNote = item.sources.map(s => s.originalAmount).join(' + ')
+        item.mergedNote = item.sources.map(s => scaleAmount(s.originalAmount, scale)).join(' + ')
       }
+      item.sources.forEach(s => {
+        s.scaledAmount = scaleAmount(s.originalAmount, scale)
+      })
     } else if (item.sources.length === 1) {
-      item.displayAmount = item.sources[0].originalAmount
+      item.displayAmount = scaleAmount(item.sources[0].originalAmount, scale)
+      item.originalDisplayAmount = item.sources[0].originalAmount
+      item.sources[0].scaledAmount = item.displayAmount
     } else {
       const units = [...new Set(item.sources.map(s => s.parsed.unit || '无单位'))]
-      item.displayAmount = item.sources.map(s => s.originalAmount).join(' + ')
+      item.displayAmount = item.sources.map(s => scaleAmount(s.originalAmount, scale)).join(' + ')
+      item.originalDisplayAmount = item.sources.map(s => s.originalAmount).join(' + ')
       if (units.length > 1) {
         item.mergedNote = `注意：单位不一致（${units.join('、')}）`
       }
       item.isMerged = item.sources.length > 1
+      item.sources.forEach(s => {
+        s.scaledAmount = scaleAmount(s.originalAmount, scale)
+      })
     }
     delete item.sourceNames
+    delete item.displayNames
   }
 
   return merged
@@ -520,6 +624,7 @@ onMounted(async () => {
   try {
     await loadAliasMap()
     await loadRecipes()
+    loadScaleFromStorage()
     loadCheckedFromStorage()
   } finally {
     loading.value = false
@@ -588,6 +693,12 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 16px 20px;
   margin-bottom: 20px;
+}
+
+.scale-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
 }
 
 .recipe-chip {
@@ -837,6 +948,13 @@ onMounted(async () => {
 
 .row-checked .amount-main {
   color: #67c23a;
+}
+
+.amount-original {
+  font-size: 12px;
+  color: #c0c4cc;
+  text-decoration: line-through;
+  margin-top: 2px;
 }
 
 .amount-note {

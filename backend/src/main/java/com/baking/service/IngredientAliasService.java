@@ -163,7 +163,8 @@ public class IngredientAliasService {
             for (Map<String, Object> ingredient : ingredients) {
                 Object name = ingredient.get("name");
                 if (name != null) {
-                    ingredient.put("name", normalize(name.toString()));
+                    String canonical = normalize(name.toString());
+                    ingredient.put("canonicalName", canonical);
                 }
             }
             return objectMapper.writeValueAsString(ingredients);

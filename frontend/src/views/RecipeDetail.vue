@@ -781,7 +781,9 @@ const {
   increaseScale,
   decreaseScale,
   resetScale
-} = useIngredientScaler(() => ingredients.value)
+} = useIngredientScaler(() => ingredients.value, {
+  storageKey: route.params.id ? `recipe_${route.params.id}` : null
+})
 
 const {
   executionActive,
