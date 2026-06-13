@@ -34,7 +34,8 @@ export default defineConfig(({ mode }) => {
         },
         '/uploads': {
           target: 'http://127.0.0.1:8088',
-          changeOrigin: true
+          changeOrigin: true,
+          rewrite: (path) => '/api' + path
         }
       }
     },

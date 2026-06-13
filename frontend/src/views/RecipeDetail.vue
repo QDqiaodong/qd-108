@@ -9,7 +9,7 @@
       <div class="detail-header">
         <div class="recipe-gallery">
           <div class="main-image">
-            <img v-if="recipe.coverImage" :src="recipe.coverImage" :alt="recipe.title" />
+            <img v-if="recipe.coverImage" :src="resolveImageUrl(recipe.coverImage)" :alt="recipe.title" />
             <div v-else class="image-placeholder" style="height: 400px;"></div>
           </div>
           <div class="thumb-list" v-if="recipe.images && recipe.images.length">
@@ -20,7 +20,7 @@
               :class="{ active: currentImage === idx }"
               @click="currentImage = idx"
             >
-              <img :src="img.imageUrl" />
+              <img :src="resolveImageUrl(img.imageUrl)" />
             </div>
           </div>
         </div>
@@ -236,7 +236,7 @@
               <div class="step-number">{{ idx + 1 }}</div>
               <div class="step-content">
                 <p>{{ step.description }}</p>
-                <img v-if="step.image" :src="step.image" />
+                <img v-if="step.image" :src="resolveImageUrl(step.image)" />
               </div>
             </div>
           </div>
@@ -417,7 +417,7 @@
                   :key="imgIdx"
                   class="trial-receipt-image-item"
                 >
-                  <img :src="img" @click="previewImage(img)" />
+                  <img :src="resolveImageUrl(img)" @click="previewImage(resolveImageUrl(img))" />
                 </div>
               </div>
               </div>
@@ -646,6 +646,14 @@ import {
 } from '@/api'
 
 const REQUEST_TIMEOUT = 8000
+
+const resolveImageUrl = (url) => {
+  if (!url) return url
+  if (url.startsWith('/uploads/') && !url.startsWith('/api/uploads/')) {
+    return '/api' + url
+  }
+  return url
+}
 
 const withTimeout = (promise, ms = REQUEST_TIMEOUT) => {
   return new Promise((resolve, reject) => {

@@ -28,6 +28,9 @@ public class ImageUtil {
     @Value("${baking.upload.url-prefix}")
     private String urlPrefix;
 
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
+
     @Data
     public static class UploadResult {
         private String url;
@@ -74,8 +77,10 @@ public class ImageUtil {
 
         builder.toFile(targetPath.toFile());
 
+        String externalPrefix = contextPath + urlPrefix;
+
         UploadResult result = new UploadResult();
-        result.setUrl(urlPrefix + "/" + dateDir + "/" + fileName);
+        result.setUrl(externalPrefix + "/" + dateDir + "/" + fileName);
         result.setType(imageType.getCode());
 
         int[] dimensions = getImageDimensions(targetPath.toFile());
@@ -95,7 +100,7 @@ public class ImageUtil {
                     .outputQuality(imageType.getQuality())
                     .toFile(thumbPath.toFile());
 
-            result.setThumbnailUrl(urlPrefix + "/" + dateDir + "/thumb/" + thumbFileName);
+            result.setThumbnailUrl(externalPrefix + "/" + dateDir + "/thumb/" + thumbFileName);
         }
 
         return result;
@@ -133,7 +138,7 @@ public class ImageUtil {
                 .outputQuality(0.8)
                 .toFile(targetPath.toFile());
 
-        return urlPrefix + "/" + dateDir + "/thumb/" + fileName;
+        return contextPath + urlPrefix + "/" + dateDir + "/thumb/" + fileName;
     }
 
     private int[] getImageDimensions(File file) {

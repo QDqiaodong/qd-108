@@ -129,7 +129,7 @@
                       添加步骤图
                     </el-button>
                     <div v-else class="step-image">
-                      <img :src="step.image" />
+                      <img :src="resolveImageUrl(step.image)" />
                       <el-button type="danger" text @click="step.image = ''">
                         删除
                       </el-button>
@@ -165,6 +165,14 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete, Picture } from '@element-plus/icons-vue'
+
+const resolveImageUrl = (url) => {
+  if (!url) return url
+  if (url.startsWith('/uploads/') && !url.startsWith('/api/uploads/')) {
+    return '/api' + url
+  }
+  return url
+}
 import { useUserStore } from '@/stores/user'
 import { getCategories, createRecipe, uploadImage } from '@/api'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'

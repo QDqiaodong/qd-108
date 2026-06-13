@@ -3,7 +3,7 @@
     <div class="recipe-image">
       <img
         v-if="recipe.coverImage"
-        :src="recipe.coverImage"
+        :src="resolveImageUrl(recipe.coverImage)"
         :alt="recipe.title"
         loading="lazy"
       />
@@ -48,6 +48,14 @@ defineProps({
     required: true
   }
 })
+
+const resolveImageUrl = (url) => {
+  if (!url) return url
+  if (url.startsWith('/uploads/') && !url.startsWith('/api/uploads/')) {
+    return '/api' + url
+  }
+  return url
+}
 </script>
 
 <style scoped>

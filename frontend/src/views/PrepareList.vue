@@ -39,7 +39,7 @@
           class="recipe-chip"
           @click="$router.push(`/recipe/${recipe.id}`)"
         >
-          <img v-if="recipe.coverImage" :src="recipe.coverImage" />
+          <img v-if="recipe.coverImage" :src="resolveImageUrl(recipe.coverImage)" />
           <div v-else class="chip-placeholder"></div>
           <span class="chip-title">{{ recipe.title }}</span>
         </div>
@@ -179,6 +179,15 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+
+const resolveImageUrl = (url) => {
+  if (!url) return url
+  if (url.startsWith('/uploads/') && !url.startsWith('/api/uploads/')) {
+    return '/api' + url
+  }
+  return url
+}
+
 import {
   ArrowLeft,
   ShoppingCart,

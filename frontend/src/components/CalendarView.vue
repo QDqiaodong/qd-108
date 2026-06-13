@@ -93,7 +93,7 @@
               @click="goToRecipe(recipe.id)"
             >
               <div class="recipe-cover">
-                <img v-if="recipe.coverImage" :src="recipe.coverImage" alt="" />
+                <img v-if="recipe.coverImage" :src="resolveImageUrl(recipe.coverImage)" alt="" />
                 <span v-else class="recipe-placeholder">🍰</span>
               </div>
               <div class="recipe-info">
@@ -215,6 +215,15 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+
+const resolveImageUrl = (url) => {
+  if (!url) return url
+  if (url.startsWith('/uploads/') && !url.startsWith('/api/uploads/')) {
+    return '/api' + url
+  }
+  return url
+}
+
 import {
   getCalendarMonthData,
   getCalendarDayDetail,

@@ -58,7 +58,7 @@ mybatis-plus:
 
 baking:
   upload:
-    path: ./uploads
+    path: ${user.dir}/uploads
     url-prefix: /uploads
   cache:
     hot-recipe-ttl: 3600
