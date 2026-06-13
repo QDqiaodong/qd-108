@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -135,8 +137,9 @@ public class RecipeService {
             List<RecipeImage> images = recipeImageMapper.selectList(wrapper);
             recipe.setImages(images);
 
-            recipe.setViewCount(recipe.getViewCount() + 1);
-            recipeMapper.updateById(recipe);
+            recipeMapper.incrementViewCountAtomic(id);
+            recipe.setViewCount(recipe.getViewCount() == null ? 1 : recipe.getViewCount() + 1);
+            clearAllHotRecipeCaches();
         }
         return recipe;
     }
@@ -178,9 +181,19 @@ public class RecipeService {
             }
         }
 
-        clearAllHotRecipeCaches();
-        redisTemplate.delete(HOT_INGREDIENTS_KEY);
-        refreshCategoryBakeStatsCache();
+        clearAllHotRecipeCachesAfterCommit();
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    redisTemplate.delete(HOT_INGREDIENTS_KEY);
+                    redisTemplate.delete(CATEGORY_BAKE_STATS_KEY);
+                }
+            });
+        } else {
+            redisTemplate.delete(HOT_INGREDIENTS_KEY);
+            redisTemplate.delete(CATEGORY_BAKE_STATS_KEY);
+        }
         return recipe;
     }
 
@@ -190,8 +203,29 @@ public class RecipeService {
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
-        } catch (Exception ignored) {
-            redisTemplate.delete(HOT_RECIPES_KEY);
+        } catch (Exception e) {
+            try {
+                List<Category> categories = categoryService.getAllCategories();
+                redisTemplate.delete(HOT_RECIPES_KEY);
+                for (Category cat : categories) {
+                    redisTemplate.delete(HOT_RECIPES_KEY + ":" + cat.getId());
+                }
+            } catch (Exception ignored) {
+                redisTemplate.delete(HOT_RECIPES_KEY);
+            }
+        }
+    }
+
+    private void clearAllHotRecipeCachesAfterCommit() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    clearAllHotRecipeCaches();
+                }
+            });
+        } else {
+            clearAllHotRecipeCaches();
         }
     }
 
@@ -211,25 +245,17 @@ public class RecipeService {
 
     public void incrementFavoriteCount(Long recipeId, int delta) {
         recipeMapper.incrementFavoriteCountAtomic(recipeId, delta);
-        clearAllHotRecipeCaches();
+        clearAllHotRecipeCachesAfterCommit();
     }
 
     public void incrementCommentCount(Long recipeId, int delta) {
-        Recipe recipe = recipeMapper.selectById(recipeId);
-        if (recipe != null) {
-            recipe.setCommentCount(Math.max(0, recipe.getCommentCount() + delta));
-            recipeMapper.updateById(recipe);
-            clearAllHotRecipeCaches();
-        }
+        recipeMapper.incrementCommentCountAtomic(recipeId, delta);
+        clearAllHotRecipeCachesAfterCommit();
     }
 
     public void incrementTrialReceiptCount(Long recipeId, int delta) {
-        Recipe recipe = recipeMapper.selectById(recipeId);
-        if (recipe != null) {
-            recipe.setTrialReceiptCount(Math.max(0, recipe.getTrialReceiptCount() + delta));
-            recipeMapper.updateById(recipe);
-            clearAllHotRecipeCaches();
-        }
+        recipeMapper.incrementTrialReceiptCountAtomic(recipeId, delta);
+        clearAllHotRecipeCachesAfterCommit();
     }
 
     @SuppressWarnings("unchecked")

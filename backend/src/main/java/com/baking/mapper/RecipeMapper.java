@@ -103,4 +103,13 @@ public interface RecipeMapper extends BaseMapper<Recipe> {
 
     @Update("UPDATE recipe SET favorite_count = GREATEST(0, COALESCE(favorite_count, 0) + #{delta}) WHERE id = #{id}")
     int incrementFavoriteCountAtomic(@Param("id") Long id, @Param("delta") int delta);
+
+    @Update("UPDATE recipe SET comment_count = GREATEST(0, COALESCE(comment_count, 0) + #{delta}) WHERE id = #{id}")
+    int incrementCommentCountAtomic(@Param("id") Long id, @Param("delta") int delta);
+
+    @Update("UPDATE recipe SET trial_receipt_count = GREATEST(0, COALESCE(trial_receipt_count, 0) + #{delta}) WHERE id = #{id}")
+    int incrementTrialReceiptCountAtomic(@Param("id") Long id, @Param("delta") int delta);
+
+    @Update("UPDATE recipe SET view_count = COALESCE(view_count, 0) + 1 WHERE id = #{id}")
+    int incrementViewCountAtomic(@Param("id") Long id);
 }
