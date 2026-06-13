@@ -66,7 +66,7 @@ import RecipeCard from '@/components/RecipeCard.vue'
 
 const route = useRoute()
 const router = useRouter()
-const keyword = ref(route.query.keyword || '')
+const keyword = ref('')
 const selectedCategory = ref(null)
 const categories = ref([])
 const recipes = ref([])
@@ -75,9 +75,25 @@ const pageNum = ref(1)
 const pageSize = ref(12)
 const total = ref(0)
 
+const syncStateFromRoute = () => {
+  const queryKeyword = route.query.keyword || ''
+  const queryCategory = route.query.categoryId || null
+  const changed = keyword.value !== queryKeyword || selectedCategory.value != queryCategory
+  keyword.value = queryKeyword
+  selectedCategory.value = queryCategory ? Number(queryCategory) : null
+  if (changed) {
+    pageNum.value = 1
+    loadRecipes()
+  }
+}
+
 onMounted(() => {
   loadCategories()
-  loadRecipes()
+  syncStateFromRoute()
+})
+
+watch(() => route.query, () => {
+  syncStateFromRoute()
 })
 
 const loadCategories = async () => {
@@ -108,14 +124,23 @@ const loadRecipes = async () => {
 
 const handleSearch = () => {
   pageNum.value = 1
-  router.push({ query: { keyword: keyword.value } })
-  loadRecipes()
+  router.push({
+    query: {
+      ...(keyword.value ? { keyword: keyword.value } : {}),
+      ...(selectedCategory.value ? { categoryId: selectedCategory.value } : {})
+    }
+  })
 }
 
 const selectCategory = (id) => {
   selectedCategory.value = id
   pageNum.value = 1
-  loadRecipes()
+  router.push({
+    query: {
+      ...(keyword.value ? { keyword: keyword.value } : {}),
+      ...(id ? { categoryId: id } : {})
+    }
+  })
 }
 </script>
 
