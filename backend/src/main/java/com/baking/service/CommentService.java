@@ -3,9 +3,12 @@ package com.baking.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baking.config.CommentKeywordConfig;
+import com.baking.config.FailureThemeCluster;
 import com.baking.dto.CommentSummaryDTO;
+import com.baking.dto.FailurePitfallDTO;
 import com.baking.entity.Comment;
 import com.baking.mapper.CommentMapper;
+import com.baking.mapper.TrialReceiptMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import java.util.stream.Collectors;
 public class CommentService {
 
     private final CommentMapper commentMapper;
+    private final TrialReceiptMapper trialReceiptMapper;
     private final RecipeService recipeService;
 
     private static final int MAX_KEYWORDS = 5;
@@ -102,5 +106,70 @@ public class CommentService {
                 .limit(MAX_KEYWORDS)
                 .map(entry -> new CommentSummaryDTO.KeywordItem(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
+    }
+
+    public FailurePitfallDTO getFailurePitfalls(Long recipeId) {
+        List<String> commentContents = commentMapper.selectAllCommentContents(recipeId);
+        List<String> trialContents = trialReceiptMapper.selectAllTextContents(recipeId);
+
+        List<String> allContents = new ArrayList<>(commentContents);
+        allContents.addAll(trialContents);
+
+        FailurePitfallDTO dto = new FailurePitfallDTO();
+        dto.setTotalFeedbackCount(allContents.size());
+
+        if (allContents.isEmpty()) {
+            dto.setThemeClusters(new ArrayList<>());
+            dto.setTotalFailureCount(0);
+            return dto;
+        }
+
+        List<FailurePitfallDTO.ThemeCluster> clusters = new ArrayList<>();
+        int totalFailureCount = 0;
+
+        for (FailureThemeCluster.FailureTheme theme : FailureThemeCluster.FailureTheme.values()) {
+            Map<String, Integer> matchedKeywords = new HashMap<>();
+            int themeCount = 0;
+
+            for (String content : allContents) {
+                if (content == null || content.isEmpty()) {
+                    continue;
+                }
+                boolean contentMatchedTheme = false;
+                for (String keyword : theme.getKeywords()) {
+                    if (content.contains(keyword)) {
+                        matchedKeywords.merge(keyword, 1, Integer::sum);
+                        if (!contentMatchedTheme) {
+                            themeCount++;
+                            contentMatchedTheme = true;
+                        }
+                    }
+                }
+            }
+
+            if (themeCount > 0) {
+                List<String> topKeywords = matchedKeywords.entrySet().stream()
+                        .sorted(Map.Entry.<String, Integer>comparingByValue(Comparator.reverseOrder())
+                                .thenComparing(Map.Entry.comparingByKey()))
+                        .limit(5)
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toList());
+
+                totalFailureCount += themeCount;
+                clusters.add(new FailurePitfallDTO.ThemeCluster(
+                        theme.name(),
+                        theme.getThemeName(),
+                        theme.getDescription(),
+                        themeCount,
+                        topKeywords
+                ));
+            }
+        }
+
+        clusters.sort(Comparator.comparingInt(FailurePitfallDTO.ThemeCluster::getCount).reversed());
+
+        dto.setThemeClusters(clusters);
+        dto.setTotalFailureCount(totalFailureCount);
+        return dto;
     }
 }

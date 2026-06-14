@@ -242,6 +242,34 @@
           </div>
         </div>
 
+        <div class="content-section" v-if="pitfallData && pitfallData.themeClusters && pitfallData.themeClusters.length">
+          <div class="section-header">
+            <h2 class="section-title">常见踩坑点</h2>
+            <span class="pitfall-sample">基于 {{ pitfallData.totalFeedbackCount }} 条反馈，{{ pitfallData.totalFailureCount }} 条提及问题</span>
+          </div>
+          <p class="pitfall-desc">综合评论与试做反馈，归纳出以下高频失误，帮助你提前规避常见问题。</p>
+          <div class="pitfall-clusters">
+            <div v-for="cluster in pitfallData.themeClusters" :key="cluster.themeCode" class="pitfall-cluster-item">
+              <div class="pitfall-cluster-header">
+                <span class="pitfall-cluster-icon">{{ getThemeIcon(cluster.themeCode) }}</span>
+                <span class="pitfall-cluster-name">{{ cluster.themeName }}</span>
+                <el-tag size="small" type="danger" effect="light" round>{{ cluster.count }}次</el-tag>
+              </div>
+              <p class="pitfall-cluster-desc">{{ cluster.description }}</p>
+              <div class="pitfall-keywords">
+                <el-tag
+                  v-for="kw in cluster.matchedKeywords"
+                  :key="kw"
+                  size="small"
+                  effect="plain"
+                  type="warning"
+                  class="pitfall-keyword-tag"
+                >{{ kw }}</el-tag>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="content-section">
           <div class="section-header">
             <h2 class="section-title">做法变体</h2>
@@ -642,7 +670,8 @@ import {
   getVariationNotes,
   getVariationTopics,
   addVariationNote as addVariationNoteApi,
-  likeVariationNote as likeVariationNoteApi
+  likeVariationNote as likeVariationNoteApi,
+  getFailurePitfalls
 } from '@/api'
 
 const REQUEST_TIMEOUT = 8000
@@ -687,6 +716,8 @@ const newlyUnlocked = ref([])
 const bakeStats = ref(null)
 const bakeStatsLoading = ref(false)
 const bakeStatsError = ref(null)
+
+const pitfallData = ref(null)
 
 const showTrialReceiptDialog = ref(false)
 const trialReceipts = ref([])
@@ -1178,6 +1209,7 @@ const loadRecipe = async () => {
     loadComments()
     loadTrialReceipts()
     loadVariationNotes()
+    loadFailurePitfalls()
 
     nextTick(() => {
       if (loadExecState()) {
@@ -1205,6 +1237,31 @@ const loadBakeStats = async () => {
   } finally {
     bakeStatsLoading.value = false
   }
+}
+
+const loadFailurePitfalls = async () => {
+  if (!recipe.value?.id) return
+  try {
+    pitfallData.value = await withTimeout(getFailurePitfalls(recipe.value.id))
+  } catch (e) {
+    console.error('加载踩坑点失败', e)
+    pitfallData.value = null
+  }
+}
+
+const getThemeIcon = (themeCode) => {
+  const iconMap = {
+    SHAPE_COLLAPSE: '🫠',
+    FERMENTATION_ISSUE: '🫧',
+    BROWNING_ISSUE: '🎨',
+    TEXTURE_ISSUE: '🧫',
+    CRACK_ISSUE: '💔',
+    TASTE_ISSUE: '👅',
+    STICKING_ISSUE: '📎',
+    DONENESS_ISSUE: '🔥',
+    MOISTURE_ISSUE: '💧'
+  }
+  return iconMap[themeCode] || '⚠️'
 }
 
 const favoriteLoading = ref(false)
@@ -2285,6 +2342,84 @@ const likeVariationNoteAction = async (id) => {
   background: #faf7f2;
   border-radius: 8px;
   border: 1px dashed #e8e0d0;
+}
+
+.pitfall-sample {
+  font-size: 13px;
+  color: #999;
+}
+
+.pitfall-desc {
+  font-size: 14px;
+  color: #999;
+  line-height: 1.8;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: #fff8f0;
+  border-radius: 8px;
+  border: 1px dashed #f0d8b8;
+}
+
+.pitfall-clusters {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.pitfall-cluster-item {
+  padding: 20px;
+  background: #fffbf7;
+  border-radius: 12px;
+  border: 1px solid #f0e0d0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pitfall-cluster-item:hover {
+  border-color: #f0c8a0;
+  box-shadow: 0 2px 12px rgba(255, 154, 86, 0.12);
+}
+
+.pitfall-cluster-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pitfall-cluster-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.pitfall-cluster-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #5a3a1a;
+  flex: 1;
+}
+
+.pitfall-cluster-desc {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.pitfall-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pitfall-keyword-tag {
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .pitfall-clusters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .variation-topic-group {

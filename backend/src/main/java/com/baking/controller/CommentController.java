@@ -3,6 +3,7 @@ package com.baking.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baking.common.Result;
 import com.baking.dto.CommentSummaryDTO;
+import com.baking.dto.FailurePitfallDTO;
 import com.baking.entity.Comment;
 import com.baking.entity.UserAchievement;
 import com.baking.service.AchievementService;
@@ -34,6 +35,11 @@ public class CommentController {
     @GetMapping("/summary")
     public Result<CommentSummaryDTO> getCommentSummary(@RequestParam Long recipeId) {
         return Result.success(commentService.getCommentSummary(recipeId));
+    }
+
+    @GetMapping("/failure-pitfalls")
+    public Result<FailurePitfallDTO> getFailurePitfalls(@RequestParam Long recipeId) {
+        return Result.success(commentService.getFailurePitfalls(recipeId));
     }
 
     @PostMapping

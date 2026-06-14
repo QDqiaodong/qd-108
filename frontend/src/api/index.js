@@ -338,3 +338,11 @@ export const likeVariationNote = (id) => {
     method: 'post'
   })
 }
+
+export const getFailurePitfalls = (recipeId) => {
+  return request({
+    url: '/comments/failure-pitfalls',
+    method: 'get',
+    params: { recipeId }
+  })
+}
