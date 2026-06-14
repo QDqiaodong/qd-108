@@ -7,6 +7,7 @@ import com.baking.entity.Recipe;
 import com.baking.entity.UserAchievement;
 import com.baking.service.AchievementService;
 import com.baking.service.RecipeService;
+import com.baking.util.RecipeDifficultyCalculator;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -51,6 +52,24 @@ public class RecipeController {
     @GetMapping("/{id}")
     public Result<Recipe> getRecipeDetail(@PathVariable Long id) {
         return Result.success(recipeService.getRecipeDetail(id));
+    }
+
+    @PostMapping("/calculate-difficulty")
+    public Result<RecipeDifficultyCalculator.DifficultyResult> calculateDifficulty(@RequestBody DifficultyCalculateRequest request) {
+        RecipeDifficultyCalculator.DifficultyResult result = RecipeDifficultyCalculator.calculate(
+                request.getIngredients(), request.getSteps(), request.getBakeTemp());
+        return Result.success(result);
+    }
+
+    @GetMapping("/{id}/difficulty-detail")
+    public Result<RecipeDifficultyCalculator.DifficultyResult> getRecipeDifficultyDetail(@PathVariable Long id) {
+        Recipe recipe = recipeService.getRecipeDetail(id);
+        if (recipe == null) {
+            return Result.success(null);
+        }
+        RecipeDifficultyCalculator.DifficultyResult result = RecipeDifficultyCalculator.calculate(
+                recipe.getIngredients(), recipe.getSteps(), recipe.getBakeTemp());
+        return Result.success(result);
     }
 
     @GetMapping("/category/bake-stats")
@@ -151,5 +170,12 @@ public class RecipeController {
         private List<String> images;
         private List<String> thumbnails;
         private List<String> imageTypes;
+    }
+
+    @Data
+    public static class DifficultyCalculateRequest {
+        private String ingredients;
+        private String steps;
+        private Integer bakeTemp;
     }
 }

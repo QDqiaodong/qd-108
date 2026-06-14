@@ -48,11 +48,60 @@
           </el-form-item>
 
           <el-form-item label="难度等级">
-            <el-radio-group v-model="form.difficulty">
-              <el-radio :value="1">简单</el-radio>
-              <el-radio :value="2">中等</el-radio>
-              <el-radio :value="3">困难</el-radio>
-            </el-radio-group>
+            <div class="difficulty-section">
+              <el-radio-group v-model="form.difficulty">
+                <el-radio :value="1">简单</el-radio>
+                <el-radio :value="2">中等</el-radio>
+                <el-radio :value="3">困难</el-radio>
+              </el-radio-group>
+              <div class="difficulty-auto-note">
+                <el-icon><InfoFilled /></el-icon>
+                <span>系统将根据配方内容自动计算难度，发布后以系统计算结果为准</span>
+              </div>
+              <div v-if="difficultyCalculating" class="difficulty-preview">
+                <el-icon class="loading-icon"><Loading /></el-icon>
+                <span>正在分析配方复杂度...</span>
+              </div>
+              <div v-else-if="difficultyResult" class="difficulty-preview">
+                <div class="difficulty-header">
+                  <span class="label">系统估算难度：</span>
+                  <el-tag :color="getDifficultyColor(difficultyResult.difficulty)" effect="dark" size="large">
+                    {{ getDifficultyText(difficultyResult.difficulty) }}
+                  </el-tag>
+                  <span class="score">综合得分：{{ difficultyResult.totalScore.toFixed(1) }}/100</span>
+                </div>
+                <div class="difficulty-details">
+                  <div class="detail-item">
+                    <span class="detail-label">食材数量</span>
+                    <div class="detail-bar">
+                      <div class="detail-bar-fill" :style="{ width: difficultyResult.ingredientScore + '%', background: '#409eff' }"></div>
+                    </div>
+                    <span class="detail-value">{{ difficultyResult.ingredientCount }}种 ({{ difficultyResult.ingredientScore.toFixed(0) }}分)</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">步骤复杂度</span>
+                    <div class="detail-bar">
+                      <div class="detail-bar-fill" :style="{ width: difficultyResult.stepScore + '%', background: '#67c23a' }"></div>
+                    </div>
+                    <span class="detail-value">{{ difficultyResult.stepCount }}步 ({{ difficultyResult.stepScore.toFixed(0) }}分)</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">发酵次数</span>
+                    <div class="detail-bar">
+                      <div class="detail-bar-fill" :style="{ width: difficultyResult.fermentationScore + '%', background: '#e6a23c' }"></div>
+                    </div>
+                    <span class="detail-value">{{ difficultyResult.fermentationCount }}次 ({{ difficultyResult.fermentationScore.toFixed(0) }}分)</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">温控要求</span>
+                    <div class="detail-bar">
+                      <div class="detail-bar-fill" :style="{ width: difficultyResult.temperatureScore + '%', background: '#f56c6c' }"></div>
+                    </div>
+                    <span class="detail-value">{{ difficultyResult.temperatureStageCount }}阶段 ({{ difficultyResult.temperatureScore.toFixed(0) }}分)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </el-form-item>
 
           <el-form-item label="烘焙温度">
@@ -164,7 +213,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, Picture } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture, InfoFilled, Loading } from '@element-plus/icons-vue'
 
 const resolveImageUrl = (url) => {
   if (!url) return url
@@ -174,7 +223,7 @@ const resolveImageUrl = (url) => {
   return url
 }
 import { useUserStore } from '@/stores/user'
-import { getCategories, createRecipe, uploadImage } from '@/api'
+import { getCategories, createRecipe, uploadImage, calculateDifficulty } from '@/api'
 import AchievementUnlock from '@/components/AchievementUnlock.vue'
 
 const router = useRouter()
@@ -188,6 +237,9 @@ const stepUploadUrl = '/api/upload/image'
 const uploadHeaders = {}
 const showAchievementUnlock = ref(false)
 const newlyUnlocked = ref([])
+const difficultyResult = ref(null)
+const difficultyCalculating = ref(false)
+let difficultyDebounceTimer = null
 
 const form = reactive({
   title: '',
@@ -213,6 +265,7 @@ onMounted(() => {
 
 watch([ingredients, steps, form], () => {
   saveToLocal()
+  debounceCalculateDifficulty()
 }, { deep: true })
 
 const loadCategories = async () => {
@@ -220,6 +273,47 @@ const loadCategories = async () => {
     categories.value = await getCategories()
   } catch (e) {
     console.error(e)
+  }
+}
+
+const getDifficultyText = (level) => {
+  const map = { 1: '简单', 2: '中等', 3: '困难' }
+  return map[level] || '未知'
+}
+
+const getDifficultyColor = (level) => {
+  const map = { 1: '#67c23a', 2: '#e6a23c', 3: '#f56c6c' }
+  return map[level] || '#909399'
+}
+
+const debounceCalculateDifficulty = () => {
+  if (difficultyDebounceTimer) {
+    clearTimeout(difficultyDebounceTimer)
+  }
+  difficultyDebounceTimer = setTimeout(() => {
+    doCalculateDifficulty()
+  }, 800)
+}
+
+const doCalculateDifficulty = async () => {
+  const validIngredients = ingredients.value.filter(i => i.name.trim())
+  const validSteps = steps.value.filter(s => s.description.trim())
+  if (validIngredients.length === 0 || validSteps.length === 0) {
+    difficultyResult.value = null
+    return
+  }
+  difficultyCalculating.value = true
+  try {
+    const result = await calculateDifficulty({
+      ingredients: JSON.stringify(validIngredients),
+      steps: JSON.stringify(validSteps),
+      bakeTemp: form.bakeTemp
+    })
+    difficultyResult.value = result
+  } catch (e) {
+    console.error('计算难度失败', e)
+  } finally {
+    difficultyCalculating.value = false
   }
 }
 
@@ -472,5 +566,102 @@ const handleAchievementClose = () => {
   margin-top: 8px;
   font-size: 12px;
   color: #999;
+}
+
+.difficulty-section {
+  width: 100%;
+}
+
+.difficulty-auto-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #ecf5ff;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #409eff;
+}
+
+.difficulty-preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.difficulty-preview .loading-icon {
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+  color: #409eff;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.difficulty-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed #dee2e6;
+}
+
+.difficulty-header .label {
+  font-weight: 600;
+  color: #333;
+}
+
+.difficulty-header .score {
+  margin-left: auto;
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.difficulty-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.detail-label {
+  width: 80px;
+  font-size: 13px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.detail-bar {
+  flex: 1;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.detail-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.detail-value {
+  width: 140px;
+  text-align: right;
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
 }
 </style>

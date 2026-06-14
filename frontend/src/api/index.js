@@ -346,3 +346,18 @@ export const getFailurePitfalls = (recipeId) => {
     params: { recipeId }
   })
 }
+
+export const calculateDifficulty = (data) => {
+  return request({
+    url: '/recipes/calculate-difficulty',
+    method: 'post',
+    data
+  })
+}
+
+export const getRecipeDifficultyDetail = (recipeId) => {
+  return request({
+    url: `/recipes/${recipeId}/difficulty-detail`,
+    method: 'get'
+  })
+}

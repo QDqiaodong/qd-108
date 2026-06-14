@@ -108,6 +108,59 @@
             </el-tag>
           </div>
 
+          <div class="difficulty-analysis" v-if="difficultyDetail && !difficultyDetailLoading">
+            <div class="analysis-header">
+              <el-icon><DataAnalysis /></el-icon>
+              <span class="analysis-title">难度分析</span>
+              <el-tag :color="getDifficultyColor(difficultyDetail.difficulty)" effect="dark" size="large">
+                {{ getDifficultyText(difficultyDetail.difficulty) }}
+              </el-tag>
+              <span class="analysis-score">综合得分：{{ difficultyDetail.totalScore.toFixed(1) }}/100</span>
+            </div>
+            <div class="analysis-grid">
+              <div class="analysis-item">
+                <div class="analysis-item-header">
+                  <span class="analysis-item-label" style="color: #409eff;">食材数量</span>
+                  <span class="analysis-item-value">{{ difficultyDetail.ingredientCount }}种</span>
+                </div>
+                <div class="analysis-bar">
+                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.ingredientScore + '%', background: '#409eff' }"></div>
+                </div>
+                <div class="analysis-item-score">{{ difficultyDetail.ingredientScore.toFixed(0) }}分</div>
+              </div>
+              <div class="analysis-item">
+                <div class="analysis-item-header">
+                  <span class="analysis-item-label" style="color: #67c23a;">步骤复杂度</span>
+                  <span class="analysis-item-value">{{ difficultyDetail.stepCount }}步</span>
+                </div>
+                <div class="analysis-bar">
+                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.stepScore + '%', background: '#67c23a' }"></div>
+                </div>
+                <div class="analysis-item-score">{{ difficultyDetail.stepScore.toFixed(0) }}分</div>
+              </div>
+              <div class="analysis-item">
+                <div class="analysis-item-header">
+                  <span class="analysis-item-label" style="color: #e6a23c;">发酵次数</span>
+                  <span class="analysis-item-value">{{ difficultyDetail.fermentationCount }}次</span>
+                </div>
+                <div class="analysis-bar">
+                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.fermentationScore + '%', background: '#e6a23c' }"></div>
+                </div>
+                <div class="analysis-item-score">{{ difficultyDetail.fermentationScore.toFixed(0) }}分</div>
+              </div>
+              <div class="analysis-item">
+                <div class="analysis-item-header">
+                  <span class="analysis-item-label" style="color: #f56c6c;">温控要求</span>
+                  <span class="analysis-item-value">{{ difficultyDetail.temperatureStageCount }}阶段</span>
+                </div>
+                <div class="analysis-bar">
+                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.temperatureScore + '%', background: '#f56c6c' }"></div>
+                </div>
+                <div class="analysis-item-score">{{ difficultyDetail.temperatureScore.toFixed(0) }}分</div>
+              </div>
+            </div>
+          </div>
+
           <div class="bake-stats-reference" v-if="bakeStats || bakeStatsLoading || bakeStatsError" v-loading="bakeStatsLoading">
             <div v-if="bakeStatsError && !bakeStatsLoading" class="section-error">
               <el-empty :description="'同品类参考加载失败：' + bakeStatsError" :image-size="60">
@@ -671,7 +724,8 @@ import {
   getVariationTopics,
   addVariationNote as addVariationNoteApi,
   likeVariationNote as likeVariationNoteApi,
-  getFailurePitfalls
+  getFailurePitfalls,
+  getRecipeDifficultyDetail
 } from '@/api'
 
 const REQUEST_TIMEOUT = 8000
@@ -716,6 +770,10 @@ const newlyUnlocked = ref([])
 const bakeStats = ref(null)
 const bakeStatsLoading = ref(false)
 const bakeStatsError = ref(null)
+
+const difficultyDetail = ref(null)
+const difficultyDetailLoading = ref(false)
+const difficultyDetailError = ref(null)
 
 const pitfallData = ref(null)
 
@@ -1039,6 +1097,11 @@ const getDifficultyText = (level) => {
   return map[level] || '简单'
 }
 
+const getDifficultyColor = (level) => {
+  const map = { 1: '#67c23a', 2: '#e6a23c', 3: '#f56c6c' }
+  return map[level] || '#909399'
+}
+
 const currentStepText = computed(() => {
   if (!steps.value.length) return ''
   let idx
@@ -1206,6 +1269,7 @@ const loadRecipe = async () => {
     loadProgress()
     loadIngredientsProgress()
     loadBakeStats()
+    loadDifficultyDetail()
     loadComments()
     loadTrialReceipts()
     loadVariationNotes()
@@ -1236,6 +1300,21 @@ const loadBakeStats = async () => {
     bakeStatsError.value = e.message || '加载失败'
   } finally {
     bakeStatsLoading.value = false
+  }
+}
+
+const loadDifficultyDetail = async () => {
+  if (!recipe.value?.id) return
+  difficultyDetailLoading.value = true
+  difficultyDetailError.value = null
+  try {
+    difficultyDetail.value = await withTimeout(getRecipeDifficultyDetail(recipe.value.id))
+  } catch (e) {
+    console.error('加载难度分析失败', e)
+    difficultyDetail.value = null
+    difficultyDetailError.value = e.message || '加载失败'
+  } finally {
+    difficultyDetailLoading.value = false
   }
 }
 
@@ -2528,6 +2607,108 @@ const likeVariationNoteAction = async (id) => {
 
   .variation-topic-header {
     flex-wrap: wrap;
+  }
+}
+
+.difficulty-analysis {
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border: 1px solid #dee2e6;
+}
+
+.analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #dee2e6;
+}
+
+.analysis-header .el-icon {
+  font-size: 20px;
+  color: #409eff;
+}
+
+.analysis-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.analysis-score {
+  margin-left: auto;
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.analysis-item {
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.analysis-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.analysis-item-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.analysis-item-value {
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+}
+
+.analysis-bar {
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.analysis-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.analysis-item-score {
+  font-size: 12px;
+  color: #999;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-header {
+    flex-wrap: wrap;
+  }
+
+  .analysis-score {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 8px;
   }
 }
 </style>

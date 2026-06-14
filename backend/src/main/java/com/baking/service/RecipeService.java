@@ -9,6 +9,7 @@ import com.baking.entity.Recipe;
 import com.baking.entity.RecipeImage;
 import com.baking.mapper.RecipeImageMapper;
 import com.baking.mapper.RecipeMapper;
+import com.baking.util.RecipeDifficultyCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -160,6 +161,10 @@ public class RecipeService {
 
         String normalizedIngredients = ingredientAliasService.normalizeIngredientsJson(recipe.getIngredients());
         recipe.setIngredients(normalizedIngredients);
+
+        RecipeDifficultyCalculator.DifficultyResult difficultyResult = RecipeDifficultyCalculator.calculate(
+                recipe.getIngredients(), recipe.getSteps(), recipe.getBakeTemp());
+        recipe.setDifficulty(difficultyResult.getDifficulty());
 
         recipeMapper.insert(recipe);
 
