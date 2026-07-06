@@ -9,7 +9,7 @@
       <div class="detail-header">
         <div class="recipe-gallery">
           <div class="main-image">
-            <img v-if="recipe.coverImage" :src="resolveImageUrl(recipe.coverImage)" :alt="recipe.title" />
+            <img v-if="recipe.coverImage" :src="recipe.coverImage" :alt="recipe.title" />
             <div v-else class="image-placeholder" style="height: 400px;"></div>
           </div>
           <div class="thumb-list" v-if="recipe.images && recipe.images.length">
@@ -20,7 +20,7 @@
               :class="{ active: currentImage === idx }"
               @click="currentImage = idx"
             >
-              <img :src="resolveImageUrl(img.imageUrl)" />
+              <img :src="img.imageUrl" />
             </div>
           </div>
         </div>
@@ -64,7 +64,6 @@
                 :type="isFavorited ? 'danger' : 'default'"
                 @click="toggleFavorite"
                 :icon="isFavorited ? StarFilled : Star"
-                :loading="favoriteLoading"
               >
                 {{ isFavorited ? '已收藏' : '收藏' }}
               </el-button>
@@ -106,59 +105,6 @@
             <el-tag v-if="recipe.servings" type="primary" effect="light">
               {{ recipe.servings }}人份
             </el-tag>
-          </div>
-
-          <div class="difficulty-analysis" v-if="difficultyDetail && !difficultyDetailLoading">
-            <div class="analysis-header">
-              <el-icon><DataAnalysis /></el-icon>
-              <span class="analysis-title">难度分析</span>
-              <el-tag :color="getDifficultyColor(difficultyDetail.difficulty)" effect="dark" size="large">
-                {{ getDifficultyText(difficultyDetail.difficulty) }}
-              </el-tag>
-              <span class="analysis-score">综合得分：{{ difficultyDetail.totalScore.toFixed(1) }}/100</span>
-            </div>
-            <div class="analysis-grid">
-              <div class="analysis-item">
-                <div class="analysis-item-header">
-                  <span class="analysis-item-label" style="color: #409eff;">食材数量</span>
-                  <span class="analysis-item-value">{{ difficultyDetail.ingredientCount }}种</span>
-                </div>
-                <div class="analysis-bar">
-                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.ingredientScore + '%', background: '#409eff' }"></div>
-                </div>
-                <div class="analysis-item-score">{{ difficultyDetail.ingredientScore.toFixed(0) }}分</div>
-              </div>
-              <div class="analysis-item">
-                <div class="analysis-item-header">
-                  <span class="analysis-item-label" style="color: #67c23a;">步骤复杂度</span>
-                  <span class="analysis-item-value">{{ difficultyDetail.stepCount }}步</span>
-                </div>
-                <div class="analysis-bar">
-                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.stepScore + '%', background: '#67c23a' }"></div>
-                </div>
-                <div class="analysis-item-score">{{ difficultyDetail.stepScore.toFixed(0) }}分</div>
-              </div>
-              <div class="analysis-item">
-                <div class="analysis-item-header">
-                  <span class="analysis-item-label" style="color: #e6a23c;">发酵次数</span>
-                  <span class="analysis-item-value">{{ difficultyDetail.fermentationCount }}次</span>
-                </div>
-                <div class="analysis-bar">
-                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.fermentationScore + '%', background: '#e6a23c' }"></div>
-                </div>
-                <div class="analysis-item-score">{{ difficultyDetail.fermentationScore.toFixed(0) }}分</div>
-              </div>
-              <div class="analysis-item">
-                <div class="analysis-item-header">
-                  <span class="analysis-item-label" style="color: #f56c6c;">温控要求</span>
-                  <span class="analysis-item-value">{{ difficultyDetail.temperatureStageCount }}阶段</span>
-                </div>
-                <div class="analysis-bar">
-                  <div class="analysis-bar-fill" :style="{ width: difficultyDetail.temperatureScore + '%', background: '#f56c6c' }"></div>
-                </div>
-                <div class="analysis-item-score">{{ difficultyDetail.temperatureScore.toFixed(0) }}分</div>
-              </div>
-            </div>
           </div>
 
           <div class="bake-stats-reference" v-if="bakeStats || bakeStatsLoading || bakeStatsError" v-loading="bakeStatsLoading">
@@ -289,35 +235,7 @@
               <div class="step-number">{{ idx + 1 }}</div>
               <div class="step-content">
                 <p>{{ step.description }}</p>
-                <img v-if="step.image" :src="resolveImageUrl(step.image)" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="content-section" v-if="pitfallData && pitfallData.themeClusters && pitfallData.themeClusters.length">
-          <div class="section-header">
-            <h2 class="section-title">常见踩坑点</h2>
-            <span class="pitfall-sample">基于 {{ pitfallData.totalFeedbackCount }} 条反馈，{{ pitfallData.totalFailureCount }} 条提及问题</span>
-          </div>
-          <p class="pitfall-desc">综合评论与试做反馈，归纳出以下高频失误，帮助你提前规避常见问题。</p>
-          <div class="pitfall-clusters">
-            <div v-for="cluster in pitfallData.themeClusters" :key="cluster.themeCode" class="pitfall-cluster-item">
-              <div class="pitfall-cluster-header">
-                <span class="pitfall-cluster-icon">{{ getThemeIcon(cluster.themeCode) }}</span>
-                <span class="pitfall-cluster-name">{{ cluster.themeName }}</span>
-                <el-tag size="small" type="danger" effect="light" round>{{ cluster.count }}次</el-tag>
-              </div>
-              <p class="pitfall-cluster-desc">{{ cluster.description }}</p>
-              <div class="pitfall-keywords">
-                <el-tag
-                  v-for="kw in cluster.matchedKeywords"
-                  :key="kw"
-                  size="small"
-                  effect="plain"
-                  type="warning"
-                  class="pitfall-keyword-tag"
-                >{{ kw }}</el-tag>
+                <img v-if="step.image" :src="step.image" />
               </div>
             </div>
           </div>
@@ -498,7 +416,7 @@
                   :key="imgIdx"
                   class="trial-receipt-image-item"
                 >
-                  <img :src="resolveImageUrl(img)" @click="previewImage(resolveImageUrl(img))" />
+                  <img :src="img" @click="previewImage(img)" />
                 </div>
               </div>
               </div>
@@ -723,20 +641,10 @@ import {
   getVariationNotes,
   getVariationTopics,
   addVariationNote as addVariationNoteApi,
-  likeVariationNote as likeVariationNoteApi,
-  getFailurePitfalls,
-  getRecipeDifficultyDetail
+  likeVariationNote as likeVariationNoteApi
 } from '@/api'
 
 const REQUEST_TIMEOUT = 8000
-
-const resolveImageUrl = (url) => {
-  if (!url) return url
-  if (url.startsWith('/uploads/') && !url.startsWith('/api/uploads/')) {
-    return '/api' + url
-  }
-  return url
-}
 
 const withTimeout = (promise, ms = REQUEST_TIMEOUT) => {
   return new Promise((resolve, reject) => {
@@ -770,12 +678,6 @@ const newlyUnlocked = ref([])
 const bakeStats = ref(null)
 const bakeStatsLoading = ref(false)
 const bakeStatsError = ref(null)
-
-const difficultyDetail = ref(null)
-const difficultyDetailLoading = ref(false)
-const difficultyDetailError = ref(null)
-
-const pitfallData = ref(null)
 
 const showTrialReceiptDialog = ref(false)
 const trialReceipts = ref([])
@@ -878,9 +780,7 @@ const {
   increaseScale,
   decreaseScale,
   resetScale
-} = useIngredientScaler(() => ingredients.value, {
-  storageKey: route.params.id ? `recipe_${route.params.id}` : null
-})
+} = useIngredientScaler(() => ingredients.value)
 
 const {
   executionActive,
@@ -895,11 +795,8 @@ const {
   exitExecutionMode,
   goNext,
   goPrev,
-  goToStep,
-  loadExecState
-} = useExecutionMode(() => steps.value, completedSteps, {
-  storageKey: route.params.id ? `recipe_exec_${route.params.id}` : null
-})
+  goToStep
+} = useExecutionMode(() => steps.value, completedSteps)
 
 watch(executionActive, (val) => {
   if (val) {
@@ -935,9 +832,6 @@ const isStepCompleted = (idx) => {
 }
 
 const isCurrentStep = (idx) => {
-  if (executionActive.value) {
-    return idx === executionStepIndex.value
-  }
   return idx === firstUncompletedIndex.value
 }
 
@@ -1097,21 +991,10 @@ const getDifficultyText = (level) => {
   return map[level] || '简单'
 }
 
-const getDifficultyColor = (level) => {
-  const map = { 1: '#67c23a', 2: '#e6a23c', 3: '#f56c6c' }
-  return map[level] || '#909399'
-}
-
 const currentStepText = computed(() => {
   if (!steps.value.length) return ''
-  let idx
-  if (executionActive.value) {
-    idx = executionStepIndex.value
-    if (idx >= steps.value.length) return '全部完成'
-  } else {
-    idx = firstUncompletedIndex.value
-    if (idx < 0) return '全部完成'
-  }
+  const idx = firstUncompletedIndex.value
+  if (idx < 0) return '全部完成'
   const desc = steps.value[idx]?.description || ''
   return `第${idx + 1}步: ${desc.length > 20 ? desc.slice(0, 20) + '...' : desc}`
 })
@@ -1183,49 +1066,13 @@ const toggleCookingMode = async () => {
       timerSyncInterval = null
     }
     timerRemaining.value = -1
-    clearCookingModeState()
     ElMessage.success('已退出烹饪模式')
   } else {
     cookingMode.value = true
     await requestWakeLock()
     syncTimerFromStorage()
     timerSyncInterval = setInterval(syncTimerFromStorage, 1000)
-    persistCookingMode()
     ElMessage.success('已开启烹饪模式，屏幕将保持常亮')
-  }
-}
-
-const cookingModeStorageKey = computed(() => `recipe_cooking_${route.params.id}`)
-
-const persistCookingMode = () => {
-  try {
-    localStorage.setItem(cookingModeStorageKey.value, JSON.stringify({ active: cookingMode.value }))
-  } catch (e) {
-    // ignore
-  }
-}
-
-const clearCookingModeState = () => {
-  try {
-    localStorage.removeItem(cookingModeStorageKey.value)
-  } catch (e) {
-    // ignore
-  }
-}
-
-const restoreCookingMode = () => {
-  try {
-    const data = localStorage.getItem(cookingModeStorageKey.value)
-    if (!data) return
-    const parsed = JSON.parse(data)
-    if (parsed.active) {
-      cookingMode.value = true
-      requestWakeLock()
-      syncTimerFromStorage()
-      timerSyncInterval = setInterval(syncTimerFromStorage, 1000)
-    }
-  } catch (e) {
-    // ignore
   }
 }
 
@@ -1238,13 +1085,11 @@ const handleVisibilityChange = async () => {
 onMounted(() => {
   loadRecipe()
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  restoreCookingMode()
 })
 
 onUnmounted(() => {
   if (cookingMode.value) {
     releaseWakeLock()
-    persistCookingMode()
   }
   if (timerSyncInterval) {
     clearInterval(timerSyncInterval)
@@ -1269,17 +1114,9 @@ const loadRecipe = async () => {
     loadProgress()
     loadIngredientsProgress()
     loadBakeStats()
-    loadDifficultyDetail()
     loadComments()
     loadTrialReceipts()
     loadVariationNotes()
-    loadFailurePitfalls()
-
-    nextTick(() => {
-      if (loadExecState()) {
-        document.body.style.overflow = 'hidden'
-      }
-    })
   } catch (e) {
     console.error(e)
     recipe.value = null
@@ -1303,69 +1140,21 @@ const loadBakeStats = async () => {
   }
 }
 
-const loadDifficultyDetail = async () => {
-  if (!recipe.value?.id) return
-  difficultyDetailLoading.value = true
-  difficultyDetailError.value = null
-  try {
-    difficultyDetail.value = await withTimeout(getRecipeDifficultyDetail(recipe.value.id))
-  } catch (e) {
-    console.error('加载难度分析失败', e)
-    difficultyDetail.value = null
-    difficultyDetailError.value = e.message || '加载失败'
-  } finally {
-    difficultyDetailLoading.value = false
-  }
-}
-
-const loadFailurePitfalls = async () => {
-  if (!recipe.value?.id) return
-  try {
-    pitfallData.value = await withTimeout(getFailurePitfalls(recipe.value.id))
-  } catch (e) {
-    console.error('加载踩坑点失败', e)
-    pitfallData.value = null
-  }
-}
-
-const getThemeIcon = (themeCode) => {
-  const iconMap = {
-    SHAPE_COLLAPSE: '🫠',
-    FERMENTATION_ISSUE: '🫧',
-    BROWNING_ISSUE: '🎨',
-    TEXTURE_ISSUE: '🧫',
-    CRACK_ISSUE: '💔',
-    TASTE_ISSUE: '👅',
-    STICKING_ISSUE: '📎',
-    DONENESS_ISSUE: '🔥',
-    MOISTURE_ISSUE: '💧'
-  }
-  return iconMap[themeCode] || '⚠️'
-}
-
-const favoriteLoading = ref(false)
-
 const toggleFavorite = async () => {
   if (!userStore.isLogin) {
     showLogin.value = true
     return
   }
-  if (favoriteLoading.value) return
-  favoriteLoading.value = true
   try {
     if (isFavorited.value) {
-      const result = await removeFavorite(userStore.userInfo.id, route.params.id)
-      if (result.removed) {
-        isFavorited.value = false
-        recipe.value.favoriteCount = Math.max(0, (recipe.value.favoriteCount || 1) - 1)
-      }
+      await removeFavorite(userStore.userInfo.id, route.params.id)
+      isFavorited.value = false
+      recipe.value.favoriteCount--
       ElMessage.success('已取消收藏')
     } else {
       const result = await addFavorite({ userId: userStore.userInfo.id, recipeId: route.params.id })
-      if (result.added) {
-        isFavorited.value = true
-        recipe.value.favoriteCount = (recipe.value.favoriteCount || 0) + 1
-      }
+      isFavorited.value = true
+      recipe.value.favoriteCount++
       ElMessage.success('收藏成功')
 
       if (result.newlyUnlocked && result.newlyUnlocked.length > 0) {
@@ -1375,8 +1164,6 @@ const toggleFavorite = async () => {
     }
   } catch (e) {
     console.error(e)
-  } finally {
-    favoriteLoading.value = false
   }
 }
 
@@ -2423,84 +2210,6 @@ const likeVariationNoteAction = async (id) => {
   border: 1px dashed #e8e0d0;
 }
 
-.pitfall-sample {
-  font-size: 13px;
-  color: #999;
-}
-
-.pitfall-desc {
-  font-size: 14px;
-  color: #999;
-  line-height: 1.8;
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  background: #fff8f0;
-  border-radius: 8px;
-  border: 1px dashed #f0d8b8;
-}
-
-.pitfall-clusters {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.pitfall-cluster-item {
-  padding: 20px;
-  background: #fffbf7;
-  border-radius: 12px;
-  border: 1px solid #f0e0d0;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.pitfall-cluster-item:hover {
-  border-color: #f0c8a0;
-  box-shadow: 0 2px 12px rgba(255, 154, 86, 0.12);
-}
-
-.pitfall-cluster-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.pitfall-cluster-icon {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.pitfall-cluster-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #5a3a1a;
-  flex: 1;
-}
-
-.pitfall-cluster-desc {
-  font-size: 13px;
-  color: #999;
-  margin-bottom: 12px;
-  line-height: 1.6;
-}
-
-.pitfall-keywords {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.pitfall-keyword-tag {
-  border-radius: 12px;
-  font-size: 12px;
-}
-
-@media (max-width: 768px) {
-  .pitfall-clusters {
-    grid-template-columns: 1fr;
-  }
-}
-
 .variation-topic-group {
   margin-bottom: 24px;
 }
@@ -2607,108 +2316,6 @@ const likeVariationNoteAction = async (id) => {
 
   .variation-topic-header {
     flex-wrap: wrap;
-  }
-}
-
-.difficulty-analysis {
-  margin-top: 20px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-radius: 12px;
-  border: 1px solid #dee2e6;
-}
-
-.analysis-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed #dee2e6;
-}
-
-.analysis-header .el-icon {
-  font-size: 20px;
-  color: #409eff;
-}
-
-.analysis-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-
-.analysis-score {
-  margin-left: auto;
-  font-size: 14px;
-  color: #666;
-  font-weight: 500;
-}
-
-.analysis-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.analysis-item {
-  background: #fff;
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
-
-.analysis-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.analysis-item-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.analysis-item-value {
-  font-size: 13px;
-  color: #333;
-  font-weight: 500;
-}
-
-.analysis-bar {
-  height: 8px;
-  background: #e9ecef;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.analysis-bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.analysis-item-score {
-  font-size: 12px;
-  color: #999;
-  text-align: right;
-}
-
-@media (max-width: 768px) {
-  .analysis-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .analysis-header {
-    flex-wrap: wrap;
-  }
-
-  .analysis-score {
-    margin-left: 0;
-    width: 100%;
-    margin-top: 8px;
   }
 }
 </style>
