@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS `recipe` (
   `like_count` int DEFAULT 0 COMMENT '点赞数',
   `comment_count` int DEFAULT 0 COMMENT '评论数',
   `favorite_count` int DEFAULT 0 COMMENT '收藏数',
-  `trial_receipt_count` int DEFAULT 0 COMMENT '试做回执数量',
   `status` tinyint DEFAULT 1 COMMENT '状态：0-草稿 1-已发布',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -56,13 +55,10 @@ CREATE TABLE IF NOT EXISTS `recipe_image` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `recipe_id` bigint NOT NULL COMMENT '配方ID',
   `image_url` varchar(255) NOT NULL COMMENT '图片地址',
-  `thumbnail_url` varchar(255) DEFAULT NULL COMMENT '缩略图地址',
-  `image_type` varchar(20) DEFAULT 'general' COMMENT '图片类型：cover-封面图 step-步骤图 result-成品图 general-通用',
   `sort_order` int DEFAULT 0 COMMENT '排序',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_recipe_id` (`recipe_id`),
-  KEY `idx_image_type` (`image_type`)
+  KEY `idx_recipe_id` (`recipe_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='配方图片表';
 
 CREATE TABLE IF NOT EXISTS `favorite` (
@@ -200,20 +196,6 @@ CREATE TABLE IF NOT EXISTS `ingredient_alias` (
   KEY `idx_canonical_name` (`canonical_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='食材别名表';
 
-CREATE TABLE IF NOT EXISTS `recipe_step_progress` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `recipe_id` bigint NOT NULL COMMENT '配方ID',
-  `completed_steps` text COMMENT '已完成的步骤索引（JSON数组）',
-  `last_step_index` int DEFAULT 0 COMMENT '最后完成的步骤索引',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_recipe` (`user_id`,`recipe_id`),
-  KEY `idx_user_id` (`user_id`),
-  KEY `idx_recipe_id` (`recipe_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='配方步骤进度表';
-
 INSERT INTO `ingredient_alias` (`canonical_name`, `alias_name`) VALUES
 ('高筋面粉', '高筋粉'),
 ('高筋面粉', '高筋面粉'),
@@ -302,37 +284,5 @@ INSERT INTO `ingredient_alias` (`canonical_name`, `alias_name`) VALUES
 ('马苏里拉奶酪', '马苏里拉芝士'),
 ('马苏里拉奶酪', '马苏里拉奶酪')
 ON DUPLICATE KEY UPDATE `canonical_name` = VALUES(`canonical_name`);
-
-CREATE TABLE IF NOT EXISTS `trial_receipt` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `recipe_id` bigint NOT NULL COMMENT '配方ID',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `success` tinyint NOT NULL DEFAULT 1 COMMENT '是否成功：0-失败 1-成功',
-  `taste_rating` tinyint DEFAULT NULL COMMENT '口感评分：1-5星',
-  `taste_comment` varchar(500) DEFAULT NULL COMMENT '口感评价',
-  `temp_adjustment` varchar(500) DEFAULT NULL COMMENT '温度调整',
-  `mold_difference` varchar(500) DEFAULT NULL COMMENT '模具差异',
-  `notes` varchar(1000) DEFAULT NULL COMMENT '其他备注',
-  `result_images` text DEFAULT NULL COMMENT '成品展示图（JSON数组格式）',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_recipe_id` (`recipe_id`),
-  KEY `idx_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试做回执表';
-
-CREATE TABLE IF NOT EXISTS `recipe_variation_note` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `recipe_id` bigint NOT NULL COMMENT '配方ID',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `topic` varchar(50) NOT NULL COMMENT '变体主题，如：换面粉、减糖、空气炸锅替代',
-  `content` varchar(500) NOT NULL COMMENT '变体备注内容',
-  `like_count` int DEFAULT 0 COMMENT '点赞数',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_recipe_id` (`recipe_id`),
-  KEY `idx_user_id` (`user_id`),
-  KEY `idx_recipe_topic` (`recipe_id`, `topic`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='做法变体备注表';
 
 SET FOREIGN_KEY_CHECKS = 1;
